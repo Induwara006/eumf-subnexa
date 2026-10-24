@@ -31,6 +31,7 @@ export default function SubNexaGoogleAccount() {
       });
       if (!result.ok) throw new Error("Login server is not available");
       setSession(await result.json());
+      setError("");
     } catch {
       setError("Cannot connect to the authentication server.");
     }
@@ -50,9 +51,19 @@ export default function SubNexaGoogleAccount() {
           accepts_terms: terms, acknowledges_costs: costs,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Cloud authorization failed");
-      // This is generated server-side and always points to Google's OAuth consent.
+      const data: unknown = await response.json().catch(() => null);
+      if (typeof data !== "object" || data === null) {
+        throw new Error(response.ok
+          ? "The authentication server returned an invalid authorization response."
+          : "Cloud authorization failed");
+      }
+      if (!response.ok) {
+        const detail = "detail" in data ? data.detail : null;
+        throw new Error(typeof detail === "string" ? detail : "Cloud authorization failed");
+      }
+      if (!("authorize_url" in data) || typeof data.authorize_url !== "string") {
+        throw new Error("The authentication server returned an invalid authorization URL.");
+      }
       window.location.assign(data.authorize_url);
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Cannot connect to Google Cloud");
@@ -62,11 +73,20 @@ export default function SubNexaGoogleAccount() {
   }
 
   async function logout() {
-    await fetch(`${API}/subnexa-auth/logout`, {
-      method: "POST", credentials: "include"
-    });
-    setSession(null);
-    void refresh();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`${API}/subnexa-auth/logout`, {
+        method: "POST", credentials: "include"
+      });
+      if (!response.ok) throw new Error("Could not log out. Please try again.");
+      setSession(null);
+      await refresh();
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Could not log out. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -113,7 +133,9 @@ export default function SubNexaGoogleAccount() {
                 onClick={connect}>{busy ? "Connecting…" : "Authorize Cloud & Create Key"}</button>
             </>
           )}
-          <button onClick={logout} style={{ marginLeft: 12, color: "#e8d4ee" }}>Log out</button>
+          <button onClick={logout} disabled={busy} style={{ marginLeft: 12, color: "#e8d4ee" }}>
+            {busy ? "Please wait…" : "Log out"}
+          </button>
         </>
       )}
       {error && <p role="alert" style={{ color: "#ff9aa4" }}>{error}</p>}

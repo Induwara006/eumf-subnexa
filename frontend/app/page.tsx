@@ -1,12 +1,14 @@
 "use client";
+import SubNexaProviderStatus from "../components/SubNexaProviderStatus";
 import SubNexaAccountDock from "../components/SubNexaAccountDock";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import "./subnexa.css";
+import "./subnexa-v43.css";
 import "./subnexa-compact-ui.css";
 
-const API = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 const STYLES = [
   { value: "natural", title: "Natural", desc: "Everyday Sinhala that reads smoothly" },
@@ -376,6 +378,27 @@ export default function Home() {
       return;
     }
 
+    // Preflight: do not reset edits/progress or send paid AI requests for an unlinked account.
+    // The server is the authority; this is only a friendly early UX check.
+    try {
+      const statusReply = await fetch(`${API}/subnexa-auth/session`, {
+        credentials: "include", cache: "no-store",
+      });
+      if (!statusReply.ok) throw new Error("Session endpoint unavailable");
+      const account = await statusReply.json();
+      if (account.signed_in !== true) {
+        notify("Sign in with Google in the account panel before translating.", true);
+        return;
+      }
+      if (account.connected !== true) {
+        notify("AI provider not connected. Open the Google account panel to check your connection. No translation request was sent.", true);
+        return;
+      }
+    } catch {
+      notify("Cannot check AI connection. Verify the SubNexa backend is running, then try again. No translation request was sent.", true);
+      return;
+    }
+
     setReadyDownload(null);
     setEditingCue(null);
     setEditedIndices([]);
@@ -409,9 +432,12 @@ export default function Home() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(
-          typeof data?.detail === "string" ? data.detail : "Translation failed."
-        );
+        const detail = typeof data?.detail === "string" ? data.detail : "";
+        if (response.status === 401) throw new Error("Google session expired. Please sign in again.");
+        if (response.status === 403) throw new Error("AI connection unavailable for this account. Check provider status in the account panel.");
+        if (response.status === 429) throw new Error("AI provider is rate-limiting requests. Previously saved progress can be resumed when capacity returns.");
+        if (response.status >= 500) throw new Error("SubNexa server or AI provider is temporarily unavailable. Retry later with the same file to resume saved progress.");
+        throw new Error(detail || `Translation failed (HTTP ${response.status}).`);
       }
 
       if (!response.body) {
@@ -544,7 +570,10 @@ export default function Home() {
         throw new Error("Translation stopped before completion.");
       }
     } catch (error) {
-      const reason = error instanceof Error ? error.message : "Cannot connect to backend.";
+      const rawReason = error instanceof Error ? error.message : "Cannot connect to backend.";
+      const reason = rawReason === "Failed to fetch" || rawReason.includes("NetworkError")
+        ? "Cannot reach translation server. Check backend URL, browser network and CORS settings."
+        : rawReason;
       logActivity("Translation error", reason, "warn");
       notify(reason, true);
     } finally {
@@ -655,6 +684,7 @@ export default function Home() {
 
       <main className="sn-main">
         <SubNexaAccountDock />
+        <SubNexaProviderStatus apiBase={API} />
         <div className="sn-title-row">
           <div><h1>Translation workspace <span className="sn-pro-mark">PRO</span></h1><p>Bring the story into Sinhala. Keep every timestamp.</p></div>
           <div className="sn-title-controls">

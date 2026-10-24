@@ -367,7 +367,7 @@ class UserKeyASGIMiddleware:
             return await self.app(scope, receive, send)
         headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers", [])}
         if headers.get("origin") != FRONTEND:
-            return await _deny(send, 403, b'{"detail":"Untrusted origin"}')
+            return await _deny(send, 403, b'{"detail":"Untrusted origin"}', headers.get("origin"))
         jar = SimpleCookie()
         try:
             jar.load(headers.get("cookie", ""))
@@ -376,14 +376,14 @@ class UserKeyASGIMiddleware:
             cookie = None
         user = _user_from_cookie_value(cookie)
         if not user:
-            return await _deny(send, 401, b'{"detail":"Sign in with Google first"}')
+            return await _deny(send, 401, b'{"detail":"Sign in with Google first"}', headers.get("origin"))
         row = _get_record(user["sub"])
         if not row:
-            return await _deny(send, 403, b'{"detail":"Connect an eligible Google Cloud project first"}')
+            return await _deny(send, 403, b'{"detail":"Connect an eligible Google Cloud project first"}', headers.get("origin"))
         try:
             key = _cipher().decrypt(row[3]).decode()
         except Exception:
-            return await _deny(send, 503, b'{"detail":"Connected key cannot be read"}')
+            return await _deny(send, 503, b'{"detail":"Connected key cannot be read"}', headers.get("origin"))
         token = _current_key.set(key)
         sub_token = _current_sub.set(user["sub"])
         try:
@@ -393,8 +393,17 @@ class UserKeyASGIMiddleware:
             _current_key.reset(token)
 
 
-async def _deny(send, status, body):
+async def _deny(send, status, body, origin=None):
+    # Explicit CORS only for the configured frontend; do not reflect arbitrary origins.
+    # This middleware returns before the application's regular CORSMiddleware runs.
+    response_headers = [(b"content-type", b"application/json"),
+                        (b"content-length", str(len(body)).encode())]
+    if origin == FRONTEND:
+        response_headers.extend([
+            (b"access-control-allow-origin", FRONTEND.encode("utf-8")),
+            (b"access-control-allow-credentials", b"true"),
+            (b"vary", b"Origin"),
+        ])
     await send({"type": "http.response.start", "status": status,
-                "headers": [(b"content-type", b"application/json"),
-                            (b"content-length", str(len(body)).encode())]})
+                "headers": response_headers})
     await send({"type": "http.response.body", "body": body})
