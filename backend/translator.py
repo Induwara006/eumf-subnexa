@@ -23,7 +23,27 @@ STYLES = {
     "formal": "Polite, fluent Sinhala appropriate to a formal scene",
 }
 
-TRANSLATION_RULES = """You are an experienced Sri Lankan Sinhala film subtitle localizer and a bilingual English-to-Sinhala dialogue editor. Write speech that a real Sri Lankan character could naturally SAY aloud, while preserving the English meaning exactly.
+TRANSLATION_RULES = """
+
+SUBNEXA V4.6 COMPAT — NATURAL SINHALA SOURCE-CHECK
+Preserve the precise English meaning and conversational Sri Lankan Sinhala.
+Do NOT follow English word order mechanically. Never invent story details,
+relationships, feelings, curses, or an omitted subject or destination.
+Use the prior and next English dialogue for context while keeping each
+subtitle aligned to its own English line and original intent.
+Examples to calibrate idioms, NOT fixed translations:
+* I was waiting for you. -> මං ඔයා එනකල් බලාගෙන හිටියේ.
+  Avoid: මම ඔයාව අපේක්ෂා කරන්න හිටියා.
+* Let's go home. -> අපි ගෙදර යමු.
+  Avoid: අපේ ගියමු / අපි ගියමු (home must not disappear).
+* You always say that. -> ඔයා හැම වෙලාවෙම එහෙම කියනවා.
+* Calm down. It was an accident. -> සන්සුන් වෙන්න. ඒක අත්වැරදීමක්.
+* Someone is knocking at the door. -> කවුරුහරි දොරට තට්ටු කරනවා.
+Check subject, object, tense, negation, names, pronouns and destination.
+Keep [[SNX_XXXX]] protected glossary tokens unchanged within their subtitle.
+Return only one Sinhala string for each English input, as a JSON array.
+
+You are an experienced Sri Lankan Sinhala film subtitle localizer and a bilingual English-to-Sinhala dialogue editor. Write speech that a real Sri Lankan character could naturally SAY aloud, while preserving the English meaning exactly.
 
 HARD PRIORITIES — highest first:
 1. MEANING: Keep who did what to whom, negation, tense, modality (might/must/should), uncertainty, question vs statement, and every necessary fact. Never add a new event, name, relationship, or intention.
@@ -222,7 +242,29 @@ def _high_confidence_meaning_error(value: str, original: str = "") -> bool:
     )
 
 
+
+# SubNexa V4.6 COMPAT: conservative source-aware Sinhala quality flags.
+def _snx_v46_quality_issues(original, value):
+    if not isinstance(original, str) or not isinstance(value, str):
+        return False
+    import re
+    output = value.strip()
+    if re.search(r"අපේ\s+ගියමු|අපි\s+ගියමු|ඉහළට\s+සිතා|අවශ්‍ය\s+වැරදියා", output):
+        return True
+    src = re.sub(r"\s+", " ", original.strip().lower()).strip(" .!?…\"'")
+    if src in {"let's go home", "let us go home", "let’s go home"}:
+        if not re.search(r"ගෙදර|ගෙට|නිවස|නිවහන|ගෙවල්", output):
+            return True
+    if src in {"i was waiting for you", "i waited for you",
+               "i've been waiting for you", "i have been waiting for you"}:
+        if "අපේක්ෂා" in output:
+            return True
+    return False
+
 def _invalid(value: str, original: str = "") -> bool:
+    # SubNexa V4.6 COMPAT: reject only high-confidence errors
+    if _snx_v46_quality_issues(original, value):
+        return True
     return (
         not value.strip()
         or _bad_script(value)
@@ -515,6 +557,9 @@ def _invalid_restored(value, original, mapping):
     Whitelisted glossary replacements can intentionally contain foreign scripts
     or punctuation (e.g. Japanese names, C#); don't reject these as AI artifacts.
     """
+    # SubNexa V4.6 COMPAT: reject only high-confidence errors
+    if _snx_v46_quality_issues(original, value):
+        return True
     return (
         not value.strip()
         or _unexpected_symbols(value, original + " ".join(mapping.values()))
