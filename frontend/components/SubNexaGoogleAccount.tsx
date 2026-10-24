@@ -1,6 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Cloud,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  LogOut,
+  ShieldCheck,
+} from "lucide-react";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 type Session = {
   signed_in: boolean;
@@ -92,87 +111,148 @@ export default function SubNexaGoogleAccount() {
     }
   }
 
+  const connectedTone = session?.connected ? "text-success" : "text-warning";
+
   return (
-    <section style={{ background: "#201329", color: "#f8e9ff", border: "1px solid #6a437c",
-      borderRadius: 16, padding: 20, maxWidth: 600, margin: "20px auto" }}>
-      <h2 style={{ marginTop: 0 }}>SubNexa · Google Account</h2>
+    <div className="space-y-5">
       {!session?.signed_in ? (
-        <>
-          <p>Sign in to manage your personal SubNexa workspace.</p>
-          <a href={`${API}/subnexa-auth/login`} style={buttonStyle}>Continue with Google</a>
-        </>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border/70 bg-background/40 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <ShieldCheck className="size-4 text-primary" />Private translation workspace
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Sign in to manage your personal SubNexa workspace. Translation jobs stay tied to your account.
+            </p>
+          </div>
+          <Button asChild size="lg" className="h-10 w-full gap-2">
+            <a href={`${API}/subnexa-auth/login`}>
+              <KeyRound className="size-4" />Continue with Google
+            </a>
+          </Button>
+        </div>
       ) : (
         <>
-          <p>Signed in: <strong>{session.name || session.email}</strong></p>
+          <div className="flex items-start gap-3 rounded-lg border border-border/70 bg-background/40 p-4">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full border border-primary/30 bg-primary/10 text-sm font-semibold text-primary">
+              {(session.name || session.email || "G").slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{session.name || session.email}</p>
+              {session.email && session.name && <p className="truncate text-[11px] text-muted-foreground">{session.email}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <Badge
+                  variant="outline"
+                  className={cn("h-5 gap-1 border-border/80 px-2 text-[10px] font-normal", connectedTone)}
+                >
+                  <span className={cn("size-1.5 rounded-full", session.connected ? "bg-success" : "bg-warning")} />
+                  {session.connected ? "Connected" : "Not connected"}
+                </Badge>
+                <Badge variant="outline" className="h-5 border-border/80 px-2 text-[10px] font-normal text-muted-foreground">
+                  {session.provider === "gemini_cloudflare" ? "Gemini + Cloudflare" : session.provider === "cloudflare" ? "Cloudflare" : "Gemini"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
           {session.provider === "gemini_cloudflare" ? (
-            <>
-              <p style={{ color: session.connected ? "#b1f4d0" : "#ffb2a8" }}>
+            <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
+              <p className={cn("flex items-center gap-1.5", connectedTone)}>
+                <CheckCircle2 className="size-3.5" />
                 Gemini primary / Cloudflare backup: {session.connected ? "Configured" : "Not configured"}
               </p>
-              <p>Gemini primary: <strong>{session.primary_configured ? "Configured" : "Not configured"}</strong>.</p>
-              <p>Cloudflare backup: <strong>{session.backup_configured ? "Configured" : "Not configured"}</strong>.</p>
-              <p>When Gemini is temporarily unavailable, SubNexa automatically continues using Cloudflare.
-                 Completed subtitle lines remain saved; no provider balance is assumed.</p>
-            </>
+              <p>Gemini primary: <strong className="text-foreground">{session.primary_configured ? "Configured" : "Not configured"}</strong>.</p>
+              <p>Cloudflare backup: <strong className="text-foreground">{session.backup_configured ? "Configured" : "Not configured"}</strong>.</p>
+              <p>When Gemini is temporarily unavailable, SubNexa automatically continues using Cloudflare. Completed subtitle lines remain saved; no provider balance is assumed.</p>
+            </div>
           ) : session.provider === "cloudflare" ? (
-            <>
-              <p style={{ color: session.connected ? "#b1f4d0" : "#ffb2a8" }}>
+            <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
+              <p className={cn("flex items-center gap-1.5", connectedTone)}>
+                <Cloud className="size-3.5" />
                 Cloudflare Workers AI (server-managed): {session.connected ? "Configured" : "Not configured"}
               </p>
-              <p>Google Login keeps translation jobs private. This provider uses
-                the site's shared daily allocation, not a personal Gemini key.</p>
-              <p>Remaining Cloudflare Neurons: <strong>Not verified</strong>.
-                Live access is tested only by an actual translation request.</p>
-              <p>Cloudflare setup is performed securely on the backend. No provider
-                token is collected in the browser.</p>
-            </>
+              <p>Google Login keeps translation jobs private. This provider uses the site&apos;s shared daily allocation, not a personal Gemini key.</p>
+              <p>Remaining Cloudflare Neurons: <strong className="text-foreground">Not verified</strong>. Live access is tested only by an actual translation request.</p>
+              <p>Cloudflare setup is performed securely on the backend. No provider token is collected in the browser.</p>
+            </div>
           ) : session.connected ? (
-            <>
-              <p style={{ color: "#b1f4d0" }}>✓ Your Google Cloud Gemini key is connected.</p>
-              <p>Project: <code>{session.project_id}</code></p>
-              <p>Remaining quota: <strong>Not verified by SubNexa</strong>.</p>
-              <p>Google measures rate limits per project and model. View exact limits
-                in your own Google AI Studio dashboard.</p>
-              <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={buttonStyle}>
-                Open Google AI Studio
-              </a>
-            </>
+            <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
+              <p className="flex items-center gap-1.5 text-success"><CheckCircle2 className="size-3.5" />Your Google Cloud Gemini key is connected.</p>
+              <p>Project: <code className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[11px] text-foreground">{session.project_id}</code></p>
+              <p>Remaining quota: <strong className="text-foreground">Not verified by SubNexa</strong>.</p>
+              <p>Google measures rate limits per project and model. View exact limits in your own Google AI Studio dashboard.</p>
+              <Button asChild variant="outline" size="sm" className="mt-1 h-8 gap-1.5 text-xs">
+                <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">
+                  <ExternalLink className="size-3.5" />Open Google AI Studio
+                </a>
+              </Button>
+            </div>
           ) : (
-            <>
-              <p>Connect an <strong>existing Google Cloud project you own</strong>.
-                Google will ask for separate Cloud permissions before creating a Gemini key.
-                This is for eligible adults only.</p>
-              <label style={{ display: "block", marginBottom: 8 }}>
-                Your Google Cloud project ID
-                <input value={projectId} onChange={e => setProjectId(e.target.value)}
-                  placeholder="my-google-project-123" style={{ display: "block", width: "100%",
-                    padding: 10, marginTop: 6, borderRadius: 8, color: "#222" }} />
-              </label>
-              <label style={checkStyle}><input type="checkbox" checked={eligible}
-                onChange={e => setEligible(e.target.checked)} /> I am 18+ and eligible to use the Gemini API.</label>
-              <label style={checkStyle}><input type="checkbox" checked={terms}
-                onChange={e => setTerms(e.target.checked)} /> I agree to Google's Gemini API terms and explicitly authorize creation of a key in my Cloud project.</label>
-              <label style={checkStyle}><input type="checkbox" checked={costs}
-                onChange={e => setCosts(e.target.checked)} /> I understand this can consume my project quota and might incur charges if my project has billing enabled.</label>
-              <button style={buttonStyle} disabled={busy || !eligible || !terms || !costs || !projectId.trim()}
-                onClick={connect}>{busy ? "Connecting…" : "Authorize Cloud & Create Key"}</button>
-            </>
+            <div className="space-y-4">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Connect an <strong className="text-foreground">existing Google Cloud project you own</strong>. Google will ask for separate Cloud permissions before creating a Gemini key. This is for eligible adults only.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="subnexa-project-id" className="text-[11px]">Your Google Cloud project ID</Label>
+                <Input
+                  id="subnexa-project-id"
+                  value={projectId}
+                  onChange={e => setProjectId(e.target.value)}
+                  placeholder="my-google-project-123"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <Checkbox id="subnexa-eligible" checked={eligible} onCheckedChange={value => setEligible(value === true)} className="mt-0.5" />
+                  <Label htmlFor="subnexa-eligible" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
+                    I am 18+ and eligible to use the Gemini API.
+                  </Label>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <Checkbox id="subnexa-terms" checked={terms} onCheckedChange={value => setTerms(value === true)} className="mt-0.5" />
+                  <Label htmlFor="subnexa-terms" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
+                    I agree to Google&apos;s Gemini API terms and explicitly authorize creation of a key in my Cloud project.
+                  </Label>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <Checkbox id="subnexa-costs" checked={costs} onCheckedChange={value => setCosts(value === true)} className="mt-0.5" />
+                  <Label htmlFor="subnexa-costs" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
+                    I understand this can consume my project quota and might incur charges if my project has billing enabled.
+                  </Label>
+                </div>
+              </div>
+              <Button
+                size="lg"
+                className="h-10 w-full gap-2"
+                disabled={busy || !eligible || !terms || !costs || !projectId.trim()}
+                onClick={connect}
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                {busy ? "Connecting…" : "Authorize Cloud & Create Key"}
+              </Button>
+            </div>
           )}
-          <button onClick={logout} disabled={busy} style={{ marginLeft: 12, color: "#e8d4ee" }}>
+
+          <Separator />
+
+          <Button variant="outline" size="sm" className="h-8 w-full gap-2 text-xs" onClick={logout} disabled={busy}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <LogOut className="size-3.5" />}
             {busy ? "Please wait…" : "Log out"}
-          </button>
+          </Button>
         </>
       )}
-      {error && <p role="alert" style={{ color: "#ff9aa4" }}>{error}</p>}
-      <small style={{ display: "block", color: "#c7abc8", marginTop: 12 }}>
+
+      {error && (
+        <Alert variant="destructive" className="py-2">
+          <AlertCircle className="size-4" />
+          <AlertDescription className="text-[11px]">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
         API secrets remain server-side. Google Cloud admin permissions are not granted by Google Login alone.
-      </small>
-    </section>
+      </p>
+    </div>
   );
 }
-
-const buttonStyle: React.CSSProperties = {
-  display: "inline-block", background: "#d52c61", color: "white", border: 0,
-  borderRadius: 30, padding: "10px 20px", cursor: "pointer", textDecoration: "none",
-};
-const checkStyle: React.CSSProperties = { display: "block", margin: "10px 0", lineHeight: 1.5 };
