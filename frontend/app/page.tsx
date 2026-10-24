@@ -1,13 +1,55 @@
 "use client";
-import SubNexaProviderStatus from "../components/SubNexaProviderStatus";
-import SubNexaAccountDock from "../components/SubNexaAccountDock";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import "./subnexa.css";
-import "./subnexa-v43.css";
-import "./subnexa-compact-ui.css";
-import "./subnexa-noir.css";
+import {
+  AlertCircle,
+  ArrowDownToLine,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  CircleHelp,
+  Copy,
+  Download,
+  FileJson,
+  FileSpreadsheet,
+  FileText,
+  Film,
+  Loader2,
+  Lock,
+  Pencil,
+  Play,
+  Plus,
+  RotateCcw,
+  Search,
+  Settings2,
+  Sparkles,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import SubNexaProviderStatus from "../components/SubNexaProviderStatus";
+import SubNexaAccountDock from "../components/SubNexaAccountDock";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -116,6 +158,34 @@ function readCsv(text: string): string[][] {
   return rows;
 }
 
+function StepLink({ href, index, label, state }: {
+  href: string;
+  index: number;
+  label: string;
+  state: "todo" | "current" | "done";
+}) {
+  return (
+    <a
+      href={href}
+      className={cn(
+        "group flex flex-1 items-center justify-center gap-2 border-b-2 px-2 py-3 text-xs font-medium transition-colors sm:text-sm",
+        state === "current" && "border-primary text-foreground",
+        state === "done" && "border-success/50 text-muted-foreground hover:text-foreground",
+        state === "todo" && "border-transparent text-muted-foreground/70 hover:text-foreground",
+      )}
+    >
+      <span className={cn(
+        "grid size-6 shrink-0 place-items-center rounded-full border text-[11px]",
+        state === "current" && "border-primary bg-primary text-primary-foreground",
+        state === "done" && "border-success/40 bg-success/15 text-success",
+        state === "todo" && "border-border text-muted-foreground",
+      )}>
+        {state === "done" ? <Check className="size-3.5" /> : index}
+      </span>
+      <span className="hidden sm:inline">{label}</span>
+    </a>
+  );
+}
 
 export default function Home() {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -166,7 +236,7 @@ export default function Home() {
 
   const activityEnd = useRef<HTMLDivElement>(null);
   const previewViewport = useRef<HTMLDivElement>(null);
-  const readyCardRef = useRef<HTMLElement>(null);
+  const readyCardRef = useRef<HTMLDivElement>(null);
   const nextActivityId = useRef(0);
 
   useEffect(() => {
@@ -300,6 +370,7 @@ export default function Home() {
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success("Download started");
   }
 
   function pickFile(f: File | null) {
@@ -671,263 +742,832 @@ export default function Home() {
     setTab("source");
   }
 
-  return (
-    <div className="sn-app" style={{ "--sn-dim": backgroundDim / 100 } as CSSProperties}>
-      <header className="sn-topbar">
-        <div className="sn-brand" aria-label="SubNexa by EUMF">
-          <svg width="29" height="28" viewBox="0 0 29 28" fill="none" aria-hidden="true"><path d="M3 5h23v15H15l-6 5v-5H3V5Z" stroke="currentColor" strokeWidth="1.8"/><path d="M8 11h13M8 15h8" stroke="currentColor" strokeWidth="1.8"/></svg>
-          <span>SubNexa</span><span className="sn-by">by EUMF</span>
+  function renderCues() {
+    if (!cues.length || !visibleIndices.length) {
+      return (
+        <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-background/30 p-6 text-center">
+          <span className="grid size-12 place-items-center rounded-full border border-border/70 bg-card text-muted-foreground">
+            <FileText className="size-5" />
+          </span>
+          <h3 className="mt-3 text-sm font-medium">
+            {cueSearch ? "No matching subtitles" : tab === "source" ? "Every line. The same moment." : "Your Sinhala version belongs here"}
+          </h3>
+          <p className="mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
+            {cueSearch ? "Try a different search or clear the filter." : tab === "source" ? "Choose Preview source or translate the selected English SRT." : "Translate a file to compare and edit Sinhala subtitles."}
+          </p>
         </div>
-        <div className="sn-top-actions">
-          <span className="sn-scope">Subtitle studio</span>
-          <button type="button" className="sn-quiet" onClick={() => setHelp(!help)} aria-expanded={help}>
-            Quick guide <span aria-hidden="true">↗</span>
-          </button>
+      );
+    }
+
+    return (
+      <div className="divide-y divide-border/50">
+        {visibleIndices.map(i => {
+          const cue = cues[i];
+          const english = tab === "source" ? cue : matchedSource(cue);
+          const isCredit = tab !== "source" && readyDownload?.creditAdded && !english;
+          const canEdit = tab !== "source" && !!readyDownload && !isCredit && !translating;
+          const isEditing = editingCue === i;
+          return (
+            <div key={`${tab}-${i}`} data-cue-index={i} className={cn("py-3 first:pt-1 last:pb-1", isEditing && "rounded-lg bg-primary/5 px-3")}>
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] tabular-nums text-muted-foreground">
+                <span className="text-foreground/70">#{cue.number}</span>
+                <time>{cue.time}</time>
+                {editedIndices.includes(i) && (
+                  <Badge className="h-4 rounded-md bg-primary/15 px-1.5 text-[9px] font-medium text-primary ring-1 ring-primary/30">Edited</Badge>
+                )}
+                {isCredit && <Badge variant="outline" className="h-4 rounded-md border-border/80 px-1.5 text-[9px]">Credit</Badge>}
+              </div>
+              {tab === "compare" ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-border/60 bg-background/40 p-2.5">
+                    <span className="text-[9px] font-medium tracking-[0.14em] text-muted-foreground">ENGLISH</span>
+                    <p lang="en" className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed">
+                      {english?.text || (isCredit ? "Opening SubNexa AI credit" : "Original line unavailable")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5">
+                    <span className="text-[9px] font-medium tracking-[0.14em] text-primary/80">සිංහල</span>
+                    <p lang="si" className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{cue.text}</p>
+                  </div>
+                </div>
+              ) : (
+                <p lang={tab === "source" ? "en" : "si"} className={cn("mt-1.5 whitespace-pre-wrap break-words leading-relaxed", tab === "source" ? "text-xs" : "text-sm")}>
+                  {cue.text}
+                </p>
+              )}
+              {isEditing && (
+                <div className="mt-2 space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+                  <Label htmlFor={`sn-edit-${i}`} className="text-[11px]">Edit Sinhala subtitle #{cue.number}</Label>
+                  <Textarea id={`sn-edit-${i}`} lang="si" rows={3} maxLength={600} value={editDraft} onChange={e => setEditDraft(e.target.value)} className="min-h-20 text-sm" />
+                  {editError && <p role="alert" className="text-[11px] text-destructive">{editError}</p>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" className="h-7 text-[11px]" onClick={() => saveEditedCue(i)}>Save line</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => { setEditingCue(null); setEditError(""); }}>Cancel</Button>
+                    <span className="text-[10px] leading-relaxed text-muted-foreground">Only dialogue text changes. Timings and ASS styling stay intact.</span>
+                  </div>
+                </div>
+              )}
+              <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1">
+                <Button variant="ghost" size="xs" className="h-6 gap-1 px-2 text-[10px] text-muted-foreground" onClick={() => { setSceneIndex(i); setCinemaOpen(true); }}>
+                  <Play className="size-3" />Cinema preview
+                </Button>
+                {canEdit && !isEditing && (
+                  <Button variant="ghost" size="xs" className="h-6 gap-1 px-2 text-[10px] text-muted-foreground" onClick={() => startEditing(i)}>
+                    <Pencil className="size-3" />Edit Sinhala
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative isolate flex min-h-screen flex-col" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
+      <div className="studio-backdrop" aria-hidden="true" />
+
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/75 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
+              <Film className="size-4" />
+            </span>
+            <div className="min-w-0 leading-tight">
+              <div className="flex items-baseline gap-2">
+                <span className="truncate text-base font-semibold tracking-tight">SubNexa</span>
+                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">by EUMF</span>
+              </div>
+              <span className="hidden truncate text-xs text-muted-foreground sm:block">English → Sinhala subtitle studio</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className="hidden h-7 gap-1.5 border-border/80 px-2.5 text-[11px] font-normal text-muted-foreground md:inline-flex">
+              <span className="size-1.5 rounded-full bg-success" />Subtitle studio
+            </Badge>
+            <Button variant="ghost" size="sm" className="h-9 gap-2 px-3 text-muted-foreground hover:text-foreground" onClick={() => setHelp(true)}>
+              <CircleHelp className="size-4" /><span className="hidden sm:inline">Quick guide</span>
+            </Button>
+            <SubNexaAccountDock />
+          </div>
         </div>
       </header>
 
-      <main className="sn-main">
-        <SubNexaAccountDock />
-        <SubNexaProviderStatus apiBase={API} />
-        <div className="sn-title-row">
-          <div><h1>Translation workspace <span className="sn-pro-mark">PRO</span></h1><p>Bring the story into Sinhala. Keep every timestamp.</p></div>
-          <div className="sn-title-controls">
-            <details className="sn-backdrop-settings">
-              <summary title="Poster background settings" aria-label="Poster background settings">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.04.04-2 2-.04-.04a1.7 1.7 0 0 0-1.88-.34l-.36.15V21h-3v-.06a1.7 1.7 0 0 0-1.16-1.61 1.7 1.7 0 0 0-1.86.38l-.04.04-2-2 .04-.04a1.7 1.7 0 0 0 .34-1.88L6.7 15H5v-3h1.7a1.7 1.7 0 0 0 .36-1.88l-.04-.04 2-2 .04.04a1.7 1.7 0 0 0 1.88.34L11.3 8V6h3v2l.36.15a1.7 1.7 0 0 0 1.88-.34l.04-.04 2 2-.04.04A1.7 1.7 0 0 0 18.2 12H20v3h-.6Z"/></svg>
-              </summary>
-              <div className="sn-backdrop-popover">
-                <label htmlFor="sn-backdrop-range">Poster background <strong>{backgroundDim}%</strong></label>
-                <input id="sn-backdrop-range" type="range" min={50} max={95} step={5} value={backgroundDim} aria-label="Poster background darkness" onChange={e => setBackgroundDim(Number(e.target.value))}/>
-                <small>Adjust movie poster visibility</small>
-              </div>
-            </details>
-            <div className="sn-language"><span>English</span><span aria-hidden="true">→</span><span lang="si">සිංහල</span></div>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-[2.1rem]">Translation workspace</h1>
+              <Badge className="h-5 rounded-md bg-primary/15 px-2 text-[10px] font-semibold tracking-[0.14em] text-primary ring-1 ring-primary/30">PRO</Badge>
+            </div>
+            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+              Bring the story into Sinhala. Every timestamp stays exactly where it belongs.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="size-9 rounded-full border-border/80 bg-card/60" aria-label="Poster background settings">
+                  <Settings2 className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 space-y-4 border-border/80 bg-popover/95 backdrop-blur">
+                <div className="flex items-center justify-between text-xs">
+                  <Label className="text-xs text-muted-foreground">Poster background</Label>
+                  <span className="font-mono text-foreground">{backgroundDim}%</span>
+                </div>
+                <Slider value={[backgroundDim]} min={50} max={95} step={5} onValueChange={([value]) => setBackgroundDim(value)} aria-label="Poster background darkness" />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">Adjust how strongly the poster wall shows behind the studio.</p>
+              </PopoverContent>
+            </Popover>
+            <div className="flex items-center gap-2 rounded-full border border-border/80 bg-card/60 px-3.5 py-1.5 text-xs">
+              <span className="text-muted-foreground">English</span>
+              <ArrowRight className="size-3.5 text-primary" />
+              <span lang="si" className="text-sm text-foreground">සිංහල</span>
+            </div>
           </div>
         </div>
 
-        {help && <section className="sn-guide" aria-label="Quick guide">
-          <h2>Your subtitle workflow</h2>
-          <ol>
-            <li>Choose a UTF-8 English .srt file (up to 2 MB), then preview it.</li>
-            <li>Pick a Sinhala style, SRT or ASS output, and optional opening credit.</li>
-            <li>Add glossary rules if you want to preserve special names or terms.</li>
-            <li>Follow live progress, then compare, search or edit Sinhala subtitles before downloading.</li>
-            <li>Click Download manually; your edits stay in the SRT/ASS file.</li>
-          </ol>
-          <p>To resume after interruption, translate the same file with the same settings and glossary.</p>
-          <button type="button" className="sn-quiet" onClick={() => setHelp(false)}>Close guide</button>
-        </section>}
+        <div className="mt-6">
+          <SubNexaProviderStatus apiBase={API} />
+        </div>
 
-        <nav className="sn-steps" aria-label="Progress">
-           <a href="#sn-setup" className={file ? "is-done" : "is-current"}><span>Upload</span></a>
-           <a href="#sn-style" className={!file ? "" : translating || readyDownload ? "is-done" : "is-current"}><span>Style & glossary</span></a>
-           <a href="#sn-studio" className={readyDownload ? "is-done" : translating ? "is-current" : ""}><span>Translate & review</span></a>
+        <Dialog open={help} onOpenChange={setHelp}>
+          <DialogContent className="border-border/80 bg-card sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <CircleHelp className="size-4 text-primary" />Your subtitle workflow
+              </DialogTitle>
+              <DialogDescription>Five steps from an English SRT to a reviewed Sinhala subtitle file.</DialogDescription>
+            </DialogHeader>
+            <ol className="space-y-3 text-sm text-muted-foreground">
+              {[
+                "Choose a UTF-8 English .srt file (up to 2 MB), then preview it.",
+                "Pick a Sinhala style, SRT or ASS output, and optional opening credit.",
+                "Add glossary rules if you want to preserve special names or terms.",
+                "Follow live progress, then compare, search or edit Sinhala subtitles before downloading.",
+                "Click Download manually; your edits stay in the SRT/ASS file.",
+              ].map((item, index) => (
+                <li key={index} className="flex gap-3">
+                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-border text-[10px] text-foreground">{index + 1}</span>
+                  <span className="leading-relaxed">{item}</span>
+                </li>
+              ))}
+            </ol>
+            <Alert className="border-border/70 bg-background/60">
+              <AlertCircle className="size-4 text-warning" />
+              <AlertDescription className="text-xs">
+                To resume after an interruption, translate the same file with the same settings and glossary.
+              </AlertDescription>
+            </Alert>
+          </DialogContent>
+        </Dialog>
+
+        <nav className="sticky top-16 z-30 mt-6 flex overflow-hidden rounded-xl border border-border/70 bg-background/80 backdrop-blur-xl" aria-label="Progress">
+          <StepLink href="#sn-setup" index={1} label="Upload" state={file ? "done" : "current"} />
+          <StepLink href="#sn-style" index={2} label="Style & glossary" state={!file ? "todo" : translating || readyDownload ? "done" : "current"} />
+          <StepLink href="#sn-studio" index={3} label="Translate & review" state={readyDownload ? "done" : translating ? "current" : "todo"} />
         </nav>
-        <div className="sn-workspace">
-          <section className="sn-panel sn-setup" aria-labelledby="source-title">
-            <div className="sn-section-head"><h2 id="source-title">Source subtitle</h2><span className="sn-meta">.srt</span></div>
-            <button type="button" className={`sn-dropzone ${dragging ? "is-dragging" : ""}`}
-              disabled={loading} onClick={() => fileInput.current?.click()}
-              onDragOver={e => { e.preventDefault(); if (!loading) setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={e => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files?.[0] || null); }}>
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M12 16V3m0 0L7 8m5-5 5 5M4 15v5h16v-5"/></svg>
-              <strong>{file ? file.name : "Drop your subtitle here"}</strong>
-              <span>{file ? `${(file.size / 1024).toFixed(1)} KB · Choose another file` : "or browse files"}</span>
-              <small>English SRT · Up to 2 MB</small>
-            </button>
-            <input ref={fileInput} type="file" accept=".srt" className="sn-hidden" aria-label="Choose subtitle file"
-              disabled={loading} onChange={e => { pickFile(e.target.files?.[0] || null); e.target.value = ""; }} />
-            <button type="button" className="sn-secondary sn-preview-button" onClick={handleUpload} disabled={loading || !file}>
-              {loading && !translating ? "Loading source…" : "Preview source"}<span aria-hidden="true">↗</span>
-            </button>
 
-            <fieldset className="sn-styles" disabled={loading}>
-              <legend>Translation style</legend>
-              {STYLES.map(s => <label key={s.value} className={`sn-style ${style === s.value ? "is-selected" : ""}`}>
-                <input type="radio" name="style" checked={style === s.value} onChange={() => { setStyle(s.value); resetTranslationResult(); }} />
-                <span><strong>{s.title}</strong><small>{s.desc}</small></span>
-              </label>)}
-            </fieldset>
-
-            <div className="sn-setting-group">
-              <div className="sn-field-title">Output format</div>
-              <div className="sn-format-switch" role="radiogroup" aria-label="Output format">
-                {(["srt", "ass"] as ExportFormat[]).map(fmt =>
-                  <button type="button" role="radio" aria-checked={exportFormat === fmt} key={fmt}
-                    className={`sn-format-option ${exportFormat === fmt ? "is-selected" : ""}`}
-                    disabled={loading} onClick={() => { setExportFormat(fmt); resetTranslationResult(); }}>.{fmt.toUpperCase()}</button>)}
-              </div>
-              <p className="sn-setting-note">ASS can display red/white opening credits on compatible players. SRT uses plain text.</p>
-              <label className="sn-check-option">
-                <input type="checkbox" checked={openingCredit} disabled={loading}
-                  onChange={e => { setOpeningCredit(e.target.checked); resetTranslationResult(); }} />
-                <span><strong>Opening SubNexa AI credit</strong><small>Only added if there is a free 5-second opening gap; dialogue times stay unchanged.</small></span>
-              </label>
-            </div>
-
-            <button type="button" className="sn-primary" onClick={handleTranslate} disabled={loading || !file}>
-              {translating ? "Translating…" : "Translate to Sinhala"}<span aria-hidden="true">→</span>
-            </button>
-            <p className="sn-hint">{!file ? "Choose a file to begin." : `${glossaryRules.length} glossary rule(s) active · Timings protected`}</p>
-            {message && <p role={isError ? "alert" : "status"} className={`sn-message ${isError ? "is-error" : ""}`}>{message}</p>}
-          </section>
-
-          <div className="sn-results">
-            <section className="sn-panel sn-preview" aria-labelledby="preview-title">
-              <div className="sn-section-head"><h2 id="preview-title">Subtitle studio <span className="sn-studio-tag">COMPARE · EDIT</span></h2><span className="sn-meta" title={file?.name || ""}>{file?.name || "No file selected"}</span></div>
-              <div className="sn-preview-toolbar">
-                <div className="sn-tabs" role="tablist" aria-label="Preview mode">
-                  {([ ["source", "English source"], ["translated", "Sinhala output"], ["compare", "Side by side"] ] as const).map(([mode,label]) =>
-                    <button type="button" role="tab" key={mode} id={`${mode}-tab`} aria-selected={tab === mode} tabIndex={tab === mode ? 0 : -1} aria-controls="subtitle-pane" onClick={() => { setTab(mode); setEditingCue(null); setSceneIndex(0); }}>{label}</button>)}
+        <div className="mt-5 grid items-start gap-5 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div className="min-w-0 space-y-5">
+            <Card id="sn-setup" className="scroll-mt-36 border-border/70 bg-card/85 backdrop-blur-sm">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-sm">Source subtitle</CardTitle>
+                    <CardDescription className="mt-1 text-xs">English SRT, UTF-8, up to 2 MB.</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="border-border/80 font-mono text-[10px] text-muted-foreground">.srt</Badge>
                 </div>
-                {readyDownload && <button type="button" className="sn-quiet sn-toolbar-download" onClick={downloadTranslatedFile}>Download .{readyDownload.format.toUpperCase()} ↓</button>}
-              </div>
-              <div className="sn-search-bar">
-                <label className="sn-search-box"><span aria-hidden="true">⌕</span><input type="search" aria-label="Search subtitles" placeholder="Search English or Sinhala dialogue…" value={cueSearch} onChange={e => { setCueSearch(e.target.value); setEditingCue(null); }} /></label>
-                <div className="sn-jump"><label htmlFor="sn-jump-number">Go to #</label><input id="sn-jump-number" type="number" min={1} step={1} placeholder="100" value={jumpNumber} onChange={e => setJumpNumber(e.target.value)} onKeyDown={e => { if (e.key === "Enter") jumpToCue(); }}/><button type="button" className="sn-outline-small" onClick={jumpToCue}>Go</button></div>
-              </div>
-              {previewNotice && <p role="status" className="sn-preview-notice">{previewNotice}</p>}
-              <div id="subtitle-pane" ref={previewViewport} role="tabpanel" aria-labelledby={`${tab}-tab`} className={`sn-cue-area ${tab === "compare" ? "sn-cue-area-compare" : ""}`}>
-                {cues.length && visibleIndices.length ? <div className="sn-cues">
-                  {visibleIndices.map(i => {
-                    const cue = cues[i];
-                    const english = tab === "source" ? cue : matchedSource(cue);
-                    const isCredit = tab !== "source" && readyDownload?.creditAdded && !english;
-                    const canEdit = tab !== "source" && !!readyDownload && !isCredit && !translating;
-                    const isEditing = editingCue === i;
-                    return <div className={`sn-cue ${isEditing ? "sn-cue-editing" : ""}`} key={`${tab}-${i}`} data-cue-index={i}>
-                      <div className="sn-cue-timing"><span>#{cue.number}</span><time>{cue.time}</time>{editedIndices.includes(i) && <span className="sn-edited-mark">Edited</span>}{isCredit && <span className="sn-credit-mark">Credit</span>}</div>
-                      {tab === "compare" ? <div className="sn-dual-row">
-                        <div className="sn-dual-source"><span className="sn-dual-label">ENGLISH</span><p lang="en">{english?.text || (isCredit ? "Opening SubNexa AI credit" : "Original line unavailable")}</p></div>
-                        <div className="sn-dual-translation"><span className="sn-dual-label">සිංහල</span><p lang="si">{cue.text}</p></div>
-                      </div> : <p lang={tab === "source" ? "en" : "si"} className="sn-cue-text">{cue.text}</p>}
-                      {isEditing && <div className="sn-edit-area"><label htmlFor={`sn-edit-${i}`}>Edit Sinhala subtitle #{cue.number}</label><textarea id={`sn-edit-${i}`} lang="si" rows={3} maxLength={600} value={editDraft} onChange={e => setEditDraft(e.target.value)} />{editError && <p role="alert" className="sn-edit-error">{editError}</p>}<div className="sn-edit-actions"><button type="button" className="sn-accent-button" onClick={() => saveEditedCue(i)}>Save line</button><button type="button" className="sn-outline-small" onClick={() => { setEditingCue(null); setEditError(""); }}>Cancel</button></div><small>Only dialogue text changes. Timings and ASS styling stay intact.</small></div>}
-                      <div className="sn-cue-actions"><button type="button" onClick={() => { setSceneIndex(i); setCinemaOpen(true); }}>◉ Cinema preview</button>{canEdit && !isEditing && <button type="button" onClick={() => startEditing(i)}>✎ Edit Sinhala</button>}</div>
-                    </div>;
-                  })}
-                </div> : <div className="sn-empty">
-                  <svg width="50" height="40" viewBox="0 0 50 40" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><rect x="3" y="3" width="44" height="29" rx="5"/><path d="M11 15h12m4 0h17M18 37h14"/></svg>
-                  <h3>{cueSearch ? "No matching subtitles" : tab === "source" ? "Every line. The same moment." : "Your Sinhala version belongs here"}</h3>
-                  <p>{cueSearch ? "Try a different search or clear the filter." : tab === "source" ? "Choose Preview source or translate the selected English SRT." : "Translate a file to compare and edit Sinhala subtitles."}</p>
-                </div>}
-              </div>
-              <div className="sn-preview-footer"><span>{visibleIndices.length} of {cues.length} subtitles {cueSearch ? "matched" : "shown"}</span><span>UTF-8 · {tab === "source" ? "SRT" : (readyDownload?.format || "SRT").toUpperCase()}</span></div>
-              {readyDownload && <div className="sn-editor-footer"><span>✎ {editedIndices.length} manual edit(s)</span>{editedIndices.length > 0 && <button type="button" className="sn-outline-small" onClick={restoreAiOutput}>Restore original AI output</button>}</div>}
-              <details className="sn-cinema-details" open={cinemaOpen} onToggle={e => setCinemaOpen(e.currentTarget.open)}>
-                <summary>Cinematic subtitle preview <span>Simulated screen · no video</span></summary>
-                <div className="sn-cinema-screen" aria-label="Simulated movie subtitle appearance">
-                  {sceneIsCredit && readyDownload?.format === "ass" ? <div className="sn-cinema-credit"><span>Sinhala Sub</span><strong>Generated by SubNexa AI</strong></div> : <p lang={tab === "source" ? "en" : "si"}>{sceneCue?.text || "Choose a subtitle line using Cinema preview."}</p>}
-                </div>
-                <p className="sn-setting-note">This is a visual approximation. Actual subtitle colors depend on the video player.</p>
-              </details>
-            </section>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => fileInput.current?.click()}
+                  onDragOver={e => { e.preventDefault(); if (!loading) setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={e => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files?.[0] || null); }}
+                  className={cn(
+                    "group flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/40 px-4 py-7 text-center transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60",
+                    dragging && "border-primary bg-primary/10",
+                  )}
+                >
+                  <span className="grid size-10 place-items-center rounded-full border border-border/80 bg-card text-primary transition-transform group-hover:-translate-y-0.5">
+                    <Upload className="size-4" />
+                  </span>
+                  <strong className="max-w-full break-words text-sm font-medium">{file ? file.name : "Drop your subtitle here"}</strong>
+                  <span className="text-xs text-muted-foreground">{file ? `${(file.size / 1024).toFixed(1)} KB · Choose another file` : "or browse files"}</span>
+                  <span className="text-[11px] text-muted-foreground/70">English SRT · UTF-8</span>
+                </button>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept=".srt"
+                  className="sr-only"
+                  aria-label="Choose subtitle file"
+                  disabled={loading}
+                  onChange={e => { pickFile(e.target.files?.[0] || null); e.target.value = ""; }}
+                />
+                <Button variant="outline" className="h-9 w-full justify-between" onClick={handleUpload} disabled={loading || !file}>
+                  {loading && !translating
+                    ? <><Loader2 className="size-4 animate-spin" />Loading source…</>
+                    : <><FileText className="size-4" />Preview source</>}
+                  <ArrowRight className="size-4 text-muted-foreground" />
+                </Button>
+              </CardContent>
+            </Card>
 
-            <section className="sn-panel sn-status" aria-labelledby="status-title">
-              <div className="sn-section-head">
-                <h2 id="status-title">{statusTitle}</h2>
-                <span className="sn-status-label"><span className={translating ? "sn-dot is-active" : "sn-dot"}/>{translating ? "In progress" : done ? "Complete" : isError ? "Stopped" : "Standby"}</span>
-              </div>
-              <div className="sn-progress-info"><span>{showProgress ? `${translatedCount} of ${totalCount || "—"} subtitles` : "Progress will appear when translation begins."}</span><strong>{progress}%</strong></div>
-              <div role="progressbar" aria-label="Translation progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="sn-track"><div style={{ width: `${progress}%` }} /></div>
-              <details className="sn-activity" open={translating || activity.length > 0}>
-                <summary>Live translation activity <span>{activity.length ? `${activity.length} events` : "Waiting for your file"}</span></summary>
-                <div className="sn-log" role="log" aria-live="polite" aria-relevant="additions">
-                  {activity.length ? activity.map(item => <div className="sn-log-row" key={item.id}>
-                    <span className={`sn-event-dot ${item.tone}`}/><div><strong>{item.label}</strong><p>{item.detail}</p></div>
-                  </div>) : <p>Translation and review stages appear here as they happen.</p>}
-                  <div ref={activityEnd}/>
+            <Card id="sn-style" className="scroll-mt-36 border-border/70 bg-card/85 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-sm">Translation settings</CardTitle>
+                <CardDescription className="mt-1 text-xs">Choose how the Sinhala dialogue should read.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="space-y-2.5">
+                  <Label className="text-xs text-muted-foreground">Translation style</Label>
+                  <RadioGroup
+                    value={style}
+                    onValueChange={value => { setStyle(value); resetTranslationResult(); }}
+                    disabled={loading}
+                    className="gap-2"
+                  >
+                    {STYLES.map(option => (
+                      <Label
+                        key={option.value}
+                        htmlFor={`style-${option.value}`}
+                        className={cn(
+                          "flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 bg-background/40 p-3 transition-colors hover:border-border",
+                          style === option.value && "border-primary/60 bg-primary/10",
+                        )}
+                      >
+                        <RadioGroupItem value={option.value} id={`style-${option.value}`} className="mt-0.5" />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium">{option.title}</span>
+                          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{option.desc}</span>
+                        </span>
+                      </Label>
+                    ))}
+                  </RadioGroup>
                 </div>
-              </details>
-            </section>
 
-            {readyDownload && !translating && !isError && <section className="sn-panel sn-ready" aria-labelledby="ready-title" ref={readyCardRef}>
-              <div className="sn-ready-head"><span className="sn-ready-mark" aria-hidden="true">✓</span><div><h2 id="ready-title">Your File Is Ready!</h2><p>Translation finished. Your file downloads only when you click.</p></div></div>
-              <p className="sn-ready-filename">{readyDownload.filename}</p>
-              <p className="sn-setting-note">{editedIndices.length > 0 ? `${editedIndices.length} manually edited line(s) included · ` : ""}{readyDownload.creditRequested
-                ? readyDownload.creditAdded ? "Opening credit included" : "Opening credit skipped — no 5-second opening gap"
-                : "Opening credit disabled"} · {readyDownload.format.toUpperCase()}</p>
-              <button type="button" className="sn-primary sn-ready-download" onClick={downloadTranslatedFile}>Download subtitles <span aria-hidden="true">↓</span></button>
-            </section>}
+                <Separator />
+
+                <div className="space-y-3">
+                  <Label className="text-xs text-muted-foreground">Output format</Label>
+                  <RadioGroup
+                    value={exportFormat}
+                    onValueChange={value => { setExportFormat(value as ExportFormat); resetTranslationResult(); }}
+                    disabled={loading}
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    {(["srt", "ass"] as ExportFormat[]).map(format => (
+                      <Label
+                        key={format}
+                        htmlFor={`format-${format}`}
+                        className={cn(
+                          "flex cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background/40 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:border-border has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                          exportFormat === format && "border-primary/60 bg-primary/10 text-foreground",
+                        )}
+                      >
+                        <RadioGroupItem value={format} id={`format-${format}`} className="sr-only" />
+                        .{format}
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    ASS can display red/white opening credits on compatible players. SRT uses plain text.
+                  </p>
+                  <div className="flex items-start gap-3 rounded-lg border border-border/70 bg-background/40 p-3">
+                    <Checkbox
+                      id="opening-credit"
+                      checked={openingCredit}
+                      disabled={loading}
+                      onCheckedChange={value => { setOpeningCredit(value === true); resetTranslationResult(); }}
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <Label htmlFor="opening-credit" className="text-xs font-medium">Opening SubNexa AI credit</Label>
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                        Only added if there is a free 5-second opening gap; dialogue times stay unchanged.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Button
+                    size="lg"
+                    className="h-11 w-full justify-between rounded-lg text-sm font-semibold shadow-lg shadow-primary/20"
+                    onClick={handleTranslate}
+                    disabled={loading || !file}
+                  >
+                    <span className="flex items-center gap-2">
+                      {translating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                      {translating ? "Translating…" : "Translate to Sinhala"}
+                    </span>
+                    <ArrowRight className="size-4" />
+                  </Button>
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    {!file ? "Choose a file to begin." : `${glossaryRules.length} glossary rule(s) active · Timings protected`}
+                  </p>
+                  {message && (
+                    <Alert
+                      variant={isError ? "destructive" : "default"}
+                      className={cn("mt-1", !isError && "border-success/30 bg-success/10 text-foreground")}
+                    >
+                      {isError ? <AlertCircle className="size-4" /> : <CheckCircle2 className="size-4 text-success" />}
+                      <AlertDescription className={cn("text-xs", !isError && "text-foreground/80")} role={isError ? "alert" : "status"}>
+                        {message}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="min-w-0 space-y-5">
+            <Card className="border-border/70 bg-card/85 backdrop-blur-sm">
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className={cn(
+                      "size-2 rounded-full",
+                      translating ? "animate-pulse bg-primary" : done ? "bg-success" : isError ? "bg-warning" : "bg-muted-foreground/50",
+                    )} />
+                    <CardTitle className="text-sm">{statusTitle}</CardTitle>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border-border/80 text-[10px] font-medium",
+                      translating && "border-primary/40 text-primary",
+                      done && "border-success/40 text-success",
+                      isError && "border-warning/40 text-warning",
+                    )}
+                  >
+                    {translating ? "In progress" : done ? "Complete" : isError ? "Stopped" : "Standby"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-end justify-between gap-4">
+                  <p className="text-xs text-muted-foreground">
+                    {showProgress ? `${translatedCount} of ${totalCount || "—"} subtitles` : "Progress appears when translation begins."}
+                  </p>
+                  <span className="font-mono text-2xl leading-none text-foreground">{progress}%</span>
+                </div>
+                <Progress value={progress} className="h-1.5" aria-label="Translation progress" />
+                <div className="space-y-2 border-t border-border/60 pt-4">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                    <span>Live activity</span>
+                    <span className="normal-case tracking-normal">{activity.length ? `${activity.length} events` : "Waiting for your file"}</span>
+                  </div>
+                  <div className="cue-scroll max-h-44 space-y-3 overflow-y-auto pr-1" role="log" aria-live="polite" aria-relevant="additions">
+                    {activity.length ? activity.map(item => (
+                      <div className="flex gap-2.5" key={item.id}>
+                        <span className={cn(
+                          "mt-1.5 size-1.5 shrink-0 rounded-full",
+                          item.tone === "success" && "bg-success",
+                          item.tone === "warn" && "bg-warning",
+                          item.tone === "info" && "bg-muted-foreground/60",
+                        )} />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground/90">{item.label}</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{item.detail}</p>
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="rounded-lg border border-dashed border-border/60 bg-background/30 p-3 text-xs text-muted-foreground">
+                        Translation and review stages appear here as they happen.
+                      </p>
+                    )}
+                    <div ref={activityEnd} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card id="sn-studio" className="scroll-mt-36 border-border/70 bg-card/85 backdrop-blur-sm">
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-sm">Subtitle studio</CardTitle>
+                      <Badge variant="outline" className="border-border/80 text-[9px] tracking-[0.12em] text-muted-foreground">COMPARE · EDIT</Badge>
+                    </div>
+                    <CardDescription className="mt-1 max-w-[42ch] truncate font-mono text-[11px]" title={file?.name || ""}>
+                      {file?.name || "No file selected"}
+                    </CardDescription>
+                  </div>
+                  {readyDownload && (
+                    <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={downloadTranslatedFile}>
+                      <Download className="size-3.5" />Download .{readyDownload.format.toUpperCase()}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Tabs
+                  value={tab}
+                  onValueChange={value => { setTab(value as "source" | "translated" | "compare"); setEditingCue(null); setSceneIndex(0); }}
+                >
+                  <TabsList className="h-9 w-full justify-start gap-1 bg-background/50 p-1 sm:w-auto">
+                    <TabsTrigger value="source" className="h-7 flex-1 px-2 text-[11px] sm:flex-none sm:px-3 sm:text-xs">
+                      <span className="sm:hidden">English</span>
+                      <span className="hidden sm:inline">English source</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="translated" className="h-7 flex-1 px-2 text-[11px] sm:flex-none sm:px-3 sm:text-xs">
+                      <span className="sm:hidden">Sinhala</span>
+                      <span className="hidden sm:inline">Sinhala output</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="compare" className="h-7 flex-1 px-2 text-[11px] sm:flex-none sm:px-3 sm:text-xs">
+                      <span className="sm:hidden">Compare</span>
+                      <span className="hidden sm:inline">Side by side</span>
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="relative flex-1">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        aria-label="Search subtitles"
+                        placeholder="Search English or Sinhala dialogue…"
+                        value={cueSearch}
+                        onChange={e => { setCueSearch(e.target.value); setEditingCue(null); }}
+                        className="h-9 pl-8 text-xs"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="sn-jump-number" className="whitespace-nowrap text-[11px] text-muted-foreground">Go to #</Label>
+                      <Input
+                        id="sn-jump-number"
+                        type="number"
+                        min={1}
+                        step={1}
+                        placeholder="100"
+                        value={jumpNumber}
+                        onChange={e => setJumpNumber(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") jumpToCue(); }}
+                        className="h-9 w-20 text-xs"
+                      />
+                      <Button variant="outline" size="sm" className="h-9" onClick={jumpToCue}>Go</Button>
+                    </div>
+                  </div>
+
+                  {previewNotice && <p role="status" className="text-[11px] text-muted-foreground">{previewNotice}</p>}
+
+                  {(["source", "translated", "compare"] as const).map(mode => (
+                    <TabsContent key={mode} value={mode} className="mt-2">
+                      <div
+                        ref={mode === tab ? previewViewport : null}
+                        className={cn("cue-scroll h-[360px] overflow-y-auto rounded-lg border border-border/60 bg-background/30 p-3", mode === "compare" && "h-[420px]")}
+                      >
+                        {renderCues()}
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span>{visibleIndices.length} of {cues.length} subtitles {cueSearch ? "matched" : "shown"}</span>
+                  <span className="font-mono">UTF-8 · {tab === "source" ? "SRT" : (readyDownload?.format || "SRT").toUpperCase()}</span>
+                </div>
+
+                {readyDownload && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3 text-[11px] text-muted-foreground">
+                    <span>{editedIndices.length} manual edit(s)</span>
+                    {editedIndices.length > 0 && (
+                      <Button variant="outline" size="xs" className="h-6 gap-1 text-[10px]" onClick={restoreAiOutput}>
+                        <RotateCcw className="size-3" />Restore original AI output
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                <Collapsible open={cinemaOpen} onOpenChange={setCinemaOpen} className="rounded-lg border border-border/60 bg-background/30">
+                  <CollapsibleTrigger asChild>
+                    <button type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
+                      <span className="flex items-center gap-2 text-xs font-medium"><Film className="size-3.5 text-primary" />Cinematic subtitle preview</span>
+                      <span className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        Simulated screen · no video
+                        <ChevronDown className={cn("size-3.5 transition-transform", cinemaOpen && "rotate-180")} />
+                      </span>
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="space-y-2 px-3 pb-3">
+                      <div className="cinema-screen flex aspect-video min-h-[170px] flex-col items-center justify-end rounded-lg px-6 pb-5 text-center">
+                        {sceneIsCredit && readyDownload?.format === "ass"
+                          ? <div className="flex flex-wrap items-center justify-center gap-2 text-base font-semibold text-white sm:text-xl"><span>Sinhala Sub</span><strong className="text-primary">Generated by SubNexa AI</strong></div>
+                          : <p lang={tab === "source" ? "en" : "si"} className="max-w-xl whitespace-pre-wrap text-sm font-semibold leading-relaxed text-white sm:text-lg">{sceneCue?.text || "Choose a subtitle line using Cinema preview."}</p>}
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-muted-foreground">Visual approximation only. Actual subtitle colors depend on the video player.</p>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </CardContent>
+            </Card>
+
+            {readyDownload && !translating && !isError && (
+              <div ref={readyCardRef}>
+                <Card className="border-success/30 bg-linear-to-br from-success/10 via-card to-card backdrop-blur-sm">
+                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-success/15 text-success ring-1 ring-success/30">
+                        <CheckCircle2 className="size-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <CardTitle className="text-sm">Your file is ready</CardTitle>
+                        <p className="mt-1 text-xs text-muted-foreground">Translation finished. Nothing downloads until you click.</p>
+                        <p className="mt-2 truncate font-mono text-[11px] text-foreground/80">{readyDownload.filename}</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          {editedIndices.length > 0 ? `${editedIndices.length} manually edited line(s) included · ` : ""}
+                          {readyDownload.creditRequested
+                            ? readyDownload.creditAdded ? "Opening credit included" : "Opening credit skipped — no 5-second opening gap"
+                            : "Opening credit disabled"} · {readyDownload.format.toUpperCase()}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="lg" className="h-10 shrink-0 gap-2 self-start sm:self-auto" onClick={downloadTranslatedFile}>
+                      <ArrowDownToLine className="size-4" />Download subtitles
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         </div>
 
-        <section className="sn-panel sn-glossary" aria-labelledby="glossary-title">
-          <button type="button" className="sn-glossary-toggle" aria-expanded={glossaryOpen} aria-controls="glossary-body" onClick={() => setGlossaryOpen(!glossaryOpen)}>
-            <span><strong id="glossary-title">Glossary protection</strong><small>{glossaryRules.length} rules · Optional naming consistency</small></span>
-            <span aria-hidden="true" className="sn-glossary-chevron">{glossaryOpen ? "−" : "+"}</span>
-          </button>
-          {glossaryOpen && <div className="sn-glossary-body" id="glossary-body">
-            <p className="sn-subtitle">Control how character names, fictional items and places survive the AI translation.</p>
-            <div className="sn-glossary-row">
-              <span className="sn-field-title">Quick presets</span>
-              <div className="sn-inline-actions">
-                {Object.entries(GLOSSARY_PRESETS).map(([name, preset]) => <button type="button" key={name} className="sn-outline-small" disabled={loading} onClick={() => {
-                  try {
-                    const known = new Set(glossaryRules.map(x => x.source.toLowerCase()));
-                    const additions = preset.filter(x => !known.has(x.source.toLowerCase()));
-                    setGlossaryRules(validateGlossaryRules([...glossaryRules, ...additions]));
-                    setPlaygroundResult(null); resetTranslationResult();
-                    setGlossaryNotice(`Added ${additions.length} terms from ${name}.`);
-                  } catch (err) { setGlossaryNotice(err instanceof Error ? err.message : "Preset failed."); }
-                }}>+ {name}</button>)}
-              </div>
-            </div>
-            <div className="sn-glossary-form">
-              <label>English term<input value={glossaryDraft.source} disabled={loading} maxLength={100} placeholder="Tony Stark" onChange={e => setGlossaryDraft({ ...glossaryDraft, source: e.target.value })} /></label>
-              <label>Rule<select disabled={loading} value={glossaryDraft.mode} onChange={e => setGlossaryDraft({ ...glossaryDraft, mode: e.target.value as GlossaryMode })}>
-                <option value="never_translate">Never translate</option><option value="custom_translation">Custom Sinhala translation</option>
-              </select></label>
-              {glossaryDraft.mode === "custom_translation" && <label>Sinhala replacement<input lang="si" value={glossaryDraft.target} disabled={loading} maxLength={120} placeholder="ටෝනි ස්ටාර්ක්" onChange={e => setGlossaryDraft({ ...glossaryDraft, target: e.target.value })} /></label>}
-              <label className="sn-check-option sn-case"><input type="checkbox" disabled={loading} checked={glossaryDraft.case_sensitive} onChange={e => setGlossaryDraft({ ...glossaryDraft, case_sensitive: e.target.checked })}/><span>Case-sensitive match</span></label>
-            </div>
-            <div className="sn-inline-actions">
-              <button type="button" className="sn-accent-button" disabled={loading} onClick={() => { saveGlossaryRule(); resetTranslationResult(); }}>{editing ? "Save changes" : "Add glossary rule"}</button>
-              {editing && <button type="button" className="sn-outline-small" onClick={() => { setEditingRule(null); setGlossaryDraft({ source: "", target: "", mode: "never_translate", case_sensitive: false }); }}>Cancel edit</button>}
-              <button type="button" className="sn-outline-small" onClick={() => exportGlossary("json")}>Export JSON</button>
-              <button type="button" className="sn-outline-small" onClick={() => exportGlossary("csv")}>Export CSV</button>
-              <label className="sn-import-label">Import JSON / CSV<input type="file" disabled={loading} accept=".json,.csv" onChange={e => { void importGlossary(e.target.files?.[0] || null).then(() => resetTranslationResult()); e.target.value = ""; }}/></label>
-            </div>
-            {glossaryNotice && <p role="status" className="sn-glossary-notice">{glossaryNotice}</p>}
+        <Card className="mt-5 border-border/70 bg-card/85 backdrop-blur-sm">
+          <Collapsible open={glossaryOpen} onOpenChange={setGlossaryOpen}>
+            <CollapsibleTrigger asChild>
+              <button type="button" className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border/70 bg-background/50 text-primary">
+                    <Lock className="size-4" />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Glossary protection</span>
+                      <Badge variant="outline" className="h-4 border-border/80 px-1.5 text-[9px] text-muted-foreground">{glossaryRules.length}</Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Keep character names, fictional items and places intact.</p>
+                  </div>
+                </div>
+                <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", glossaryOpen && "rotate-180")} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-5 border-t border-border/60 px-5 py-5">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Control how character names, fictional items and places survive the AI translation.
+                </p>
 
-            <div className="sn-glossary-list-head">
-              <h3>Saved terms <span>{glossaryRules.length}</span></h3>
-              <input aria-label="Search glossary" type="search" placeholder="Search names or replacements" value={glossarySearch} onChange={e => setGlossarySearch(e.target.value)} />
-            </div>
-            <div className="sn-glossary-terms">
-              {visibleGlossary.length ? visibleGlossary.map(({rule:r,index:i}) => <div className="sn-term" key={`${r.source}:${i}`}>
-                <div className="sn-term-info"><strong>{r.source}</strong><span aria-hidden="true">→</span><span lang="si">{r.mode === "never_translate" ? "Keep original" : r.target}</span>{r.case_sensitive && <small>Case sensitive</small>}</div>
-                <div className="sn-term-actions"><button type="button" disabled={loading} onClick={() => { setEditingRule(i); setGlossaryDraft({ ...r }); }}>Edit</button><button type="button" disabled={loading} onClick={() => { setGlossaryRules(glossaryRules.filter((_, index) => index !== i)); setPlaygroundResult(null); setEditingRule(null); resetTranslationResult(); }}>Remove</button></div>
-              </div>) : <p className="sn-setting-note">{glossaryRules.length ? "No matching terms." : "No glossary rules yet. Add a term or select a preset."}</p>}
-            </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <Label className="text-xs text-muted-foreground">Quick presets</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(GLOSSARY_PRESETS).map(([name, preset]) => (
+                      <Button
+                        key={name}
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 text-[11px]"
+                        disabled={loading}
+                        onClick={() => {
+                          try {
+                            const known = new Set(glossaryRules.map(x => x.source.toLowerCase()));
+                            const additions = preset.filter(x => !known.has(x.source.toLowerCase()));
+                            setGlossaryRules(validateGlossaryRules([...glossaryRules, ...additions]));
+                            setPlaygroundResult(null); resetTranslationResult();
+                            setGlossaryNotice(`Added ${additions.length} terms from ${name}.`);
+                          } catch (err) { setGlossaryNotice(err instanceof Error ? err.message : "Preset failed."); }
+                        }}
+                      >
+                        <Plus className="size-3" />{name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="sn-playground">
-              <h3>Glossary playground</h3>
-              <p className="sn-subtitle">Preview protected tokens and restored names without consuming Gemini quota.</p>
-              <textarea rows={3} value={playgroundInput} maxLength={10000} aria-label="Glossary playground text" onChange={e => setPlaygroundInput(e.target.value)} />
-              <div className="sn-inline-actions">
-                <button type="button" className="sn-secondary" disabled={playgroundLoading} onClick={() => void runGlossaryPreview()}>{playgroundLoading ? "Checking…" : "Preview protection"}</button>
-                <button type="button" className="sn-outline-small" onClick={() => {
-                  const snippet = `import json\nfrom glossary_engine import parse_glossary, mask_batch, restore_line\n\nrules = parse_glossary(json.loads(${JSON.stringify(JSON.stringify(glossaryRules))}))\nenglish = ["Tony Stark activated the Arc Reactor."]\nmasked, token_maps = mask_batch(english, rules)\n# Send masked text through the existing translation and review pipeline.\n# result = [translated_text]\n# final = [restore_line(text, mapping) for text, mapping in zip(result, token_maps)]`;
-                  void navigator.clipboard.writeText(snippet).then(() => setGlossaryNotice("Python integration example copied.")).catch(() => setGlossaryNotice("Clipboard unavailable."));
-                }}>Copy Python snippet</button>
-                <button type="button" className="sn-outline-small" onClick={() => {
-                  const snippet = `const glossary = ${JSON.stringify(glossaryRules, null, 2)};\nconst form = new FormData();\nform.append("file", selectedSrtFile);\nform.append("style", "natural");\nform.append("glossary", JSON.stringify(glossary));\nform.append("output_format", "srt");\nform.append("opening_credit", "true");\nconst response = await fetch("${API}/translate-srt-stream", { method: "POST", body: form });`;
-                  void navigator.clipboard.writeText(snippet).then(() => setGlossaryNotice("JavaScript API example copied.")).catch(() => setGlossaryNotice("Clipboard unavailable."));
-                }}>Copy JS snippet</button>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="glossary-source" className="text-[11px]">English term</Label>
+                    <Input
+                      id="glossary-source"
+                      value={glossaryDraft.source}
+                      disabled={loading}
+                      maxLength={100}
+                      placeholder="Tony Stark"
+                      onChange={e => setGlossaryDraft({ ...glossaryDraft, source: e.target.value })}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px]">Rule</Label>
+                    <Select
+                      value={glossaryDraft.mode}
+                      disabled={loading}
+                      onValueChange={value => setGlossaryDraft({ ...glossaryDraft, mode: value as GlossaryMode })}
+                    >
+                      <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="never_translate">Never translate</SelectItem>
+                        <SelectItem value="custom_translation">Custom Sinhala translation</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {glossaryDraft.mode === "custom_translation" && (
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="glossary-target" className="text-[11px]">Sinhala replacement</Label>
+                      <Input
+                        id="glossary-target"
+                        lang="si"
+                        value={glossaryDraft.target}
+                        disabled={loading}
+                        maxLength={120}
+                        placeholder="ටෝනි ස්ටාර්ක්"
+                        onChange={e => setGlossaryDraft({ ...glossaryDraft, target: e.target.value })}
+                        className="h-9"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 sm:col-span-2">
+                    <Checkbox
+                      id="glossary-case"
+                      disabled={loading}
+                      checked={glossaryDraft.case_sensitive}
+                      onCheckedChange={value => setGlossaryDraft({ ...glossaryDraft, case_sensitive: value === true })}
+                    />
+                    <Label htmlFor="glossary-case" className="text-[11px] font-normal text-muted-foreground">Case-sensitive match</Label>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" className="h-8" disabled={loading} onClick={() => { saveGlossaryRule(); resetTranslationResult(); }}>
+                    {editing ? "Save changes" : "Add glossary rule"}
+                  </Button>
+                  {editing && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => { setEditingRule(null); setGlossaryDraft({ source: "", target: "", mode: "never_translate", case_sensitive: false }); }}
+                    >
+                      Cancel edit
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => exportGlossary("json")}>
+                    <FileJson className="size-3.5" />JSON
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => exportGlossary("csv")}>
+                    <FileSpreadsheet className="size-3.5" />CSV
+                  </Button>
+                  <Label htmlFor="glossary-import" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 cursor-pointer gap-1")}>
+                    <Upload className="size-3.5" />Import
+                  </Label>
+                  <input
+                    id="glossary-import"
+                    type="file"
+                    disabled={loading}
+                    accept=".json,.csv"
+                    className="sr-only"
+                    onChange={e => { void importGlossary(e.target.files?.[0] || null).then(() => resetTranslationResult()); e.target.value = ""; }}
+                  />
+                </div>
+
+                {glossaryNotice && (
+                  <p role="status" className="rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-[11px] text-success">{glossaryNotice}</p>
+                )}
+
+                <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-xs font-medium">Saved terms <span className="text-muted-foreground">({glossaryRules.length})</span></h3>
+                  <div className="relative sm:w-64">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      aria-label="Search glossary"
+                      type="search"
+                      placeholder="Search names or replacements"
+                      value={glossarySearch}
+                      onChange={e => setGlossarySearch(e.target.value)}
+                      className="h-8 pl-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="cue-scroll max-h-64 space-y-1.5 overflow-y-auto pr-1">
+                  {visibleGlossary.length ? visibleGlossary.map(({ rule: r, index: i }) => (
+                    <div key={`${r.source}:${i}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        <strong className="font-medium">{r.source}</strong>
+                        <ArrowRight className="size-3 text-muted-foreground" />
+                        <span lang="si" className="text-muted-foreground">{r.mode === "never_translate" ? "Keep original" : r.target}</span>
+                        {r.case_sensitive && <Badge variant="outline" className="h-4 border-border/70 px-1.5 text-[9px] font-normal text-muted-foreground">Case sensitive</Badge>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button variant="ghost" size="xs" className="h-6 px-2 text-[10px]" disabled={loading} onClick={() => { setEditingRule(i); setGlossaryDraft({ ...r }); }}>Edit</Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="h-6 px-2 text-destructive hover:text-destructive"
+                          disabled={loading}
+                          aria-label={`Remove ${r.source}`}
+                          onClick={() => { setGlossaryRules(glossaryRules.filter((_, index) => index !== i)); setPlaygroundResult(null); setEditingRule(null); resetTranslationResult(); }}
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="rounded-lg border border-dashed border-border/60 bg-background/30 p-3 text-xs text-muted-foreground">
+                      {glossaryRules.length ? "No matching terms." : "No glossary rules yet. Add a term or select a preset."}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-3 border-t border-border/60 pt-4">
+                  <div>
+                    <h3 className="text-xs font-medium">Glossary playground</h3>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Preview protected tokens and restored names without consuming Gemini quota.</p>
+                  </div>
+                  <Textarea
+                    rows={3}
+                    value={playgroundInput}
+                    maxLength={10000}
+                    aria-label="Glossary playground text"
+                    onChange={e => setPlaygroundInput(e.target.value)}
+                    className="text-xs"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" className="h-8 gap-1" disabled={playgroundLoading} onClick={() => void runGlossaryPreview()}>
+                      {playgroundLoading ? <><Loader2 className="size-3.5 animate-spin" />Checking…</> : <><Play className="size-3.5" />Preview protection</>}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      onClick={() => {
+                        const snippet = `import json\nfrom glossary_engine import parse_glossary, mask_batch, restore_line\n\nrules = parse_glossary(json.loads(${JSON.stringify(JSON.stringify(glossaryRules))}))\nenglish = ["Tony Stark activated the Arc Reactor."]\nmasked, token_maps = mask_batch(english, rules)\n# Send masked text through the existing translation and review pipeline.\n# result = [translated_text]\n# final = [restore_line(text, mapping) for text, mapping in zip(result, token_maps)]`;
+                        void navigator.clipboard.writeText(snippet).then(() => { setGlossaryNotice("Python integration example copied."); toast.success("Python snippet copied"); }).catch(() => setGlossaryNotice("Clipboard unavailable."));
+                      }}
+                    >
+                      <Copy className="size-3.5" />Python snippet
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      onClick={() => {
+                        const snippet = `const glossary = ${JSON.stringify(glossaryRules, null, 2)};\nconst form = new FormData();\nform.append("file", selectedSrtFile);\nform.append("style", "natural");\nform.append("glossary", JSON.stringify(glossary));\nform.append("output_format", "srt");\nform.append("opening_credit", "true");\nconst response = await fetch("${API}/translate-srt-stream", { method: "POST", body: form });`;
+                        void navigator.clipboard.writeText(snippet).then(() => { setGlossaryNotice("JavaScript API example copied."); toast.success("JavaScript snippet copied"); }).catch(() => setGlossaryNotice("Clipboard unavailable."));
+                      }}
+                    >
+                      <Copy className="size-3.5" />JS snippet
+                    </Button>
+                  </div>
+                  {playgroundResult && (
+                    <div className="space-y-2 rounded-lg border border-border/60 bg-background/40 p-3">
+                      <p className="text-[11px] text-muted-foreground">Masked before Gemini</p>
+                      <code className="block break-words font-mono text-[11px] text-foreground/90">{playgroundResult.masked}</code>
+                      <p className="text-[11px] text-muted-foreground">Restored demonstration (not AI translated)</p>
+                      <code className="block break-words font-mono text-[11px] text-foreground/90">{playgroundResult.restored_example}</code>
+                      {playgroundResult.replacements.map((replacement, index) => (
+                        <small key={index} className="block break-words text-[10px] text-muted-foreground">{replacement.placeholder} → {replacement.restored}</small>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              {playgroundResult && <div className="sn-playground-results">
-                <p>Masked before Gemini</p><code>{playgroundResult.masked}</code>
-                <p>Restored demonstration (not AI translated)</p><code>{playgroundResult.restored_example}</code>
-                {playgroundResult.replacements.map((r,i) => <small key={i}>{r.placeholder} → {r.restored}</small>)}
-              </div>}
-            </div>
-          </div>}
-        </section>
-        {readyDownload && !readyCardVisible && !translating && !isError && <aside className="sn-floating-ready" aria-label="File ready for download"><div><strong>✓ Your File Is Ready!</strong><small>{editedIndices.length ? `${editedIndices.length} edited · ` : ""}{readyDownload.filename}</small></div><button type="button" onClick={downloadTranslatedFile}>Download ↓</button></aside>}
-        <footer className="sn-footer"><span>SubNexa <span className="sn-footer-sep">/</span> Made for the story.</span><span>Developed by E Unity Movie Family LK</span></footer>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+
+        <footer className="mt-10 flex flex-col gap-2 border-t border-border/60 pt-5 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <span>SubNexa <span className="mx-2 text-border">/</span> Made for the story.</span>
+          <span>Developed by E Unity Movie Family LK</span>
+        </footer>
       </main>
+
+      {readyDownload && !readyCardVisible && !translating && !isError && (
+        <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-xl border border-success/30 bg-card/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:left-auto sm:right-5 sm:w-[min(460px,calc(100vw-2.5rem))]">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <CheckCircle2 className="size-4 shrink-0 text-success" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium">Your file is ready</p>
+              <p className="truncate text-[10px] text-muted-foreground">
+                {editedIndices.length ? `${editedIndices.length} edited · ` : ""}{readyDownload.filename}
+              </p>
+            </div>
+          </div>
+          <Button size="sm" className="h-8 shrink-0 gap-1 text-xs" onClick={downloadTranslatedFile}>
+            <Download className="size-3.5" />Download
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

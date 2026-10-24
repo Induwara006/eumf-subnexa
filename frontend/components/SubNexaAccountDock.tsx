@@ -1,74 +1,56 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useState } from "react";
+import { UserRound } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import SubNexaGoogleAccount from "./SubNexaGoogleAccount";
 
 /**
- * Visual-only wrapper around the existing V4.2 Google Account component.
+ * Account panel wrapper around the existing Google Account component.
  * Does not change its OAuth, credentials, session, or translation logic.
  */
 export default function SubNexaAccountDock() {
   const [open, setOpen] = useState(false);
-  const panelId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
 
   return (
-    <div className="sn-account-dock">
-      {!open && (
-        <button
-          className="sn-account-trigger"
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-expanded={false}
-          aria-controls={panelId}
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-2 border-border/80 bg-card/60 px-3 text-xs"
           aria-label="Open Google account panel"
           title="Google account"
         >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="8" r="3.5" />
-            <path d="M4.5 20c.25-4.1 3.1-6.4 7.5-6.4s7.25 2.3 7.5 6.4" />
-          </svg>
-          <span>Google account</span>
-          <span className="sn-account-trigger-arrow" aria-hidden="true">‹</span>
-        </button>
-      )}
-
-      {open && (
-        <>
-          <button
-            className="sn-account-scrim"
-            type="button"
-            tabIndex={-1}
-            aria-label="Close Google account panel"
-            onClick={() => setOpen(false)}
-          />
-          <aside className="sn-account-sidebar" id={panelId} role="dialog" aria-modal="true" aria-label="Google account">
-            <div className="sn-account-sidebar-head">
-              <div className="sn-account-sidebar-title">
-                <span className="sn-account-identity-icon" aria-hidden="true">G</span>
-                <div>
-                  <strong>Google account</strong>
-                  <small>SubNexa workspace</small>
-                </div>
-              </div>
-              <button className="sn-account-close" type="button" onClick={() => setOpen(false)} aria-label="Close account panel" title="Close">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
-              </button>
+          <UserRound className="size-4 text-primary" />
+          <span className="hidden sm:inline">Account</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-full gap-0 border-border/70 bg-card p-0 sm:max-w-md">
+        <SheetHeader className="border-b border-border/60 px-5 py-4 pr-12">
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-sm font-semibold text-primary">
+              G
+            </span>
+            <div>
+              <SheetTitle className="text-sm">Google account</SheetTitle>
+              <SheetDescription className="text-xs">SubNexa workspace</SheetDescription>
             </div>
-            <div className="sn-account-sidebar-body">
-              <SubNexaGoogleAccount />
-            </div>
-          </aside>
-        </>
-      )}
-    </div>
+          </div>
+        </SheetHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <SubNexaGoogleAccount />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

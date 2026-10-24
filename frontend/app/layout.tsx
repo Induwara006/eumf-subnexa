@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-// Fonts live in app/fonts/. Delete the four @font-face lines at the top of subnexa.css
-// so each file is loaded once (here, via next/font).
 const inter = localFont({
   variable: "--font-inter",
   display: "swap",
@@ -27,8 +27,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${notoSinhala.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`dark ${inter.variable} ${notoSinhala.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col">
+        <TooltipProvider>{children}</TooltipProvider>
+        <Toaster theme="dark" position="bottom-right" />
+      </body>
     </html>
   );
 }
