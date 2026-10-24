@@ -145,6 +145,15 @@ class PartialBatchTranslationError(ValueError):
 
 
 def _client():
+    # SubNexa V4.5 Gemini Cloudflare failover: use per-job, sticky provider routing.
+    if os.getenv("SUBNEXA_AI_PROVIDER", "gemini").strip().lower() == "gemini_cloudflare":
+        from subnexa_failover import HybridClient, authorized_gemini_key
+        return HybridClient(authorized_gemini_key(current_translation_key()))
+    # SubNexa V4.4 Workers AI adapter: preserve all existing translation,
+    # review, glossary, repair, timing and resume logic unchanged.
+    if os.getenv("SUBNEXA_AI_PROVIDER", "gemini").strip().lower() == "cloudflare":
+        from cloudflare_subnexa import CloudflareClient
+        return CloudflareClient()
     key = current_translation_key()
     if not key:
         raise ValueError("Sign in and connect an eligible Google Cloud project first.")
@@ -243,7 +252,8 @@ def _generate_array(client, prompt: str, expected: int) -> list[str]:
             config={"response_mime_type": "application/json"},
         )
     except Exception as primary_error:
-        if current_translation_key() or not should_fallback(primary_error):
+        if (os.getenv("SUBNEXA_AI_PROVIDER", "gemini").strip().lower() in ("cloudflare", "gemini_cloudflare")
+                or current_translation_key() or not should_fallback(primary_error)):
             raise
         # Never log credentials or full subtitle prompt.
         print("[SubNexa AI] Primary Gemini unavailable; switching to CodeCraft backup", flush=True)

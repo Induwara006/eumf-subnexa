@@ -5,6 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 type Connection = {
   signed_in: boolean;
   connected: boolean;
+  provider?: "gemini" | "cloudflare" | "gemini_cloudflare";
+  primary_configured?: boolean | null;
+  backup_configured?: boolean | null;
   project_id?: string | null;
   remaining_credits?: number | null;
 };
@@ -51,12 +54,18 @@ export default function SubNexaProviderStatus({ apiBase }: Props) {
   const heading = kind === "checking" ? "Checking AI connection"
     : kind === "offline" ? "Cannot check AI connection"
     : kind === "signed-out" ? "Google sign-in required"
-    : kind === "connected" ? "AI project connected" : "AI provider not connected";
+    : kind === "connected" ? (connection?.provider === "gemini_cloudflare" ? "Gemini + Cloudflare backup (configured)" : connection?.provider === "cloudflare" ? "Cloudflare configured (unverified)" : "AI project connected") : "AI provider not connected";
   const explanation = kind === "checking" ? "Checking your account securely…"
     : kind === "offline" ? "Check that the FastAPI backend is running and the API URL is correct."
     : kind === "signed-out" ? "Sign in with Google using the account panel to access your workspace."
-    : kind === "connected" ? "A project key is stored. Actual model access is checked when you translate."
-    : "Google Login succeeded, but no usable translation key is linked to this account. Translation cannot start yet.";
+    : kind === "connected" ? (connection?.provider === "gemini_cloudflare"
+      ? "Gemini is primary; Cloudflare takes over on temporary outages. Live quota is not verified."
+      : connection?.provider === "cloudflare"
+      ? "Cloudflare server token is configured, but live model access and quota are not yet verified."
+      : "A project key is stored. Actual model access is checked when you translate.")
+    : (connection?.provider === "cloudflare"
+      ? "Cloudflare credentials are missing on the backend; translation cannot start yet."
+      : "Google Login succeeded, but no usable translation key is linked to this account. Translation cannot start yet.");
 
   return (
     <section className={`sn-v43-status sn-v43-${kind}`} aria-label="AI provider connection status" aria-live="polite">
@@ -67,7 +76,7 @@ export default function SubNexaProviderStatus({ apiBase }: Props) {
           <p>{explanation}</p>
           {!checking && connection?.signed_in && (
             <small>
-              Provider: Google Gemini · Remaining provider allowance: <b>
+              Provider: {connection.provider === "gemini_cloudflare" ? "Gemini → Cloudflare backup" : connection.provider === "cloudflare" ? "Cloudflare Workers AI (shared)" : "Google Gemini"} · Remaining provider allowance: <b>
                 {typeof connection.remaining_credits === "number" && Number.isFinite(connection.remaining_credits)
                   ? connection.remaining_credits : "Not verified"}
               </b>

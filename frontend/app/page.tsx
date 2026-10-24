@@ -7,6 +7,7 @@ import type { CSSProperties } from "react";
 import "./subnexa.css";
 import "./subnexa-v43.css";
 import "./subnexa-compact-ui.css";
+import "./subnexa-noir.css";
 
 const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -476,6 +477,9 @@ export default function Home() {
             case "review_complete":
               logActivity("Review completed", `${count} lines checked`, "success");
               break;
+            case "provider_fallback":
+              logActivity("Cloudflare backup activated", "Gemini temporarily unavailable. Continuing from saved subtitle progress.", "warn");
+              break;
             case "review_fallback":
               logActivity("Review unavailable", "Validated draft used", "warn");
               break;
@@ -715,6 +719,11 @@ export default function Home() {
           <button type="button" className="sn-quiet" onClick={() => setHelp(false)}>Close guide</button>
         </section>}
 
+        <nav className="sn-steps" aria-label="Progress">
+           <a href="#sn-setup" className={file ? "is-done" : "is-current"}><span>Upload</span></a>
+           <a href="#sn-style" className={!file ? "" : translating || readyDownload ? "is-done" : "is-current"}><span>Style & glossary</span></a>
+           <a href="#sn-studio" className={readyDownload ? "is-done" : translating ? "is-current" : ""}><span>Translate & review</span></a>
+        </nav>
         <div className="sn-workspace">
           <section className="sn-panel sn-setup" aria-labelledby="source-title">
             <div className="sn-section-head"><h2 id="source-title">Source subtitle</h2><span className="sn-meta">.srt</span></div>

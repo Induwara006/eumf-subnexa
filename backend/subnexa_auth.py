@@ -20,6 +20,8 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import requests
+from cloudflare_subnexa import active as cloudflare_active, configured as cloudflare_configured
+from subnexa_failover import active as hybrid_active, configured as hybrid_configured, authorized_gemini_key
 from cryptography.fernet import Fernet
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -304,11 +306,28 @@ def session(request: Request):
     if not user:
         return {"signed_in": False, "connected": False}
     row = _get_record(user["sub"])
+    # SubNexa V4.4 Cloudflare provider: connection is a SERVER CONFIGURATION
+    # status, never an assertion of remaining free Neurons or live model access.
+    using_cloudflare = cloudflare_active()
+    using_hybrid = hybrid_active()
+    # SubNexa V4.5 hybrid provider: configured != live inference success.
+    primary_ready = bool(row) or bool(authorized_gemini_key())
+    backup_ready = cloudflare_configured()
+    provider = "gemini_cloudflare" if using_hybrid else "cloudflare" if using_cloudflare else "gemini"
     return {"signed_in": True, "name": user.get("name", ""),
-            "email": user.get("email", ""), "connected": bool(row),
-            "project_id": row[0] if row else None,
+            "email": user.get("email", ""),
+            "provider": provider,
+            "primary_configured": primary_ready if using_hybrid else None,
+            "backup_configured": backup_ready if using_hybrid else None,
+            "connected": (primary_ready or backup_ready) if using_hybrid else
+                         (backup_ready if using_cloudflare else bool(row)),
+            "project_id": None if (using_cloudflare or using_hybrid) else (row[0] if row else None),
             "remaining_credits": None,
-            "quota_notice": "Google Gemini quotas are project-level. Exact remaining allowance not verified here."}
+            "quota_notice": ("Gemini primary and Cloudflare backup are configured server-side; live access and remaining provider allowance are not verified."
+                if using_hybrid else
+                "Cloudflare server token configured; actual access and remaining shared daily Neurons are not verified."
+                if using_cloudflare else
+                "Google Gemini quotas are project-level. Exact remaining allowance not verified here.")}
 
 
 class ConnectRequest(BaseModel):
@@ -377,6 +396,41 @@ class UserKeyASGIMiddleware:
         user = _user_from_cookie_value(cookie)
         if not user:
             return await _deny(send, 401, b'{"detail":"Sign in with Google first"}', headers.get("origin"))
+        # SubNexa V4.5 hybrid provider: login is still mandatory; an authorized
+        # per-user Gemini key or explicitly configured site key can be primary.
+        # Cloudflare backup uses the site's shared quota, never a personal quota.
+        if hybrid_active():
+            row = _get_record(user["sub"])
+            if not (row or hybrid_configured()):
+                return await _deny(send, 503, b'{"detail":"Neither Gemini nor Cloudflare is configured"}', headers.get("origin"))
+            key_token = None
+            if row:
+                try:
+                    decrypted = _cipher().decrypt(row[3]).decode()
+                    key_token = _current_key.set(decrypted)
+                except Exception:
+                    # An authorized site key or Cloudflare may still be available.
+                    if not hybrid_configured():
+                        return await _deny(send, 503, b'{"detail":"No readable AI credentials are available"}', headers.get("origin"))
+            sub_token = _current_sub.set(user["sub"])
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                _current_sub.reset(sub_token)
+                if key_token is not None:
+                    _current_key.reset(key_token)
+            return
+        # SubNexa V4.4 Cloudflare provider: maintain login and per-user
+        # translation progress isolation, without requiring a Gemini key.
+        if cloudflare_active():
+            if not cloudflare_configured():
+                return await _deny(send, 503, b'{"detail":"Cloudflare server configuration is missing"}', headers.get("origin"))
+            sub_token = _current_sub.set(user["sub"])
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                _current_sub.reset(sub_token)
+            return
         row = _get_record(user["sub"])
         if not row:
             return await _deny(send, 403, b'{"detail":"Connect an eligible Google Cloud project first"}', headers.get("origin"))

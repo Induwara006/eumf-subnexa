@@ -5,6 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 type Session = {
   signed_in: boolean;
   connected: boolean;
+  provider?: "gemini" | "cloudflare" | "gemini_cloudflare";
+  primary_configured?: boolean | null;
+  backup_configured?: boolean | null;
   name?: string;
   email?: string;
   project_id?: string | null;
@@ -101,7 +104,29 @@ export default function SubNexaGoogleAccount() {
       ) : (
         <>
           <p>Signed in: <strong>{session.name || session.email}</strong></p>
-          {session.connected ? (
+          {session.provider === "gemini_cloudflare" ? (
+            <>
+              <p style={{ color: session.connected ? "#b1f4d0" : "#ffb2a8" }}>
+                Gemini primary / Cloudflare backup: {session.connected ? "Configured" : "Not configured"}
+              </p>
+              <p>Gemini primary: <strong>{session.primary_configured ? "Configured" : "Not configured"}</strong>.</p>
+              <p>Cloudflare backup: <strong>{session.backup_configured ? "Configured" : "Not configured"}</strong>.</p>
+              <p>When Gemini is temporarily unavailable, SubNexa automatically continues using Cloudflare.
+                 Completed subtitle lines remain saved; no provider balance is assumed.</p>
+            </>
+          ) : session.provider === "cloudflare" ? (
+            <>
+              <p style={{ color: session.connected ? "#b1f4d0" : "#ffb2a8" }}>
+                Cloudflare Workers AI (server-managed): {session.connected ? "Configured" : "Not configured"}
+              </p>
+              <p>Google Login keeps translation jobs private. This provider uses
+                the site's shared daily allocation, not a personal Gemini key.</p>
+              <p>Remaining Cloudflare Neurons: <strong>Not verified</strong>.
+                Live access is tested only by an actual translation request.</p>
+              <p>Cloudflare setup is performed securely on the backend. No provider
+                token is collected in the browser.</p>
+            </>
+          ) : session.connected ? (
             <>
               <p style={{ color: "#b1f4d0" }}>✓ Your Google Cloud Gemini key is connected.</p>
               <p>Project: <code>{session.project_id}</code></p>

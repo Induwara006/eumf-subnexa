@@ -1,0 +1,153 @@
+/* SubNexa — Cinema Noir theme. Import LAST in page.tsx, after subnexa-compact-ui.css.
+   Token layer + surface/accent overrides; no changes to behaviour or class names. */
+
+.sn-app {
+  --ground: #0b0808;
+  --surface: #141010;
+  --raised: #231a1a;
+  --control: #4d3b3b;
+  --text: #f6efee;
+  --muted: #c2b5b3;
+  --faint: #9d908e;
+  --accent: #e5484d;      /* film red: primary actions, active, focus */
+  --accent-soft: rgba(229, 72, 77, .14);
+  --ok: #9bbfaa;          /* sage: success / completed only */
+  --line: rgba(255, 238, 235, .09);
+  font-family: var(--font-inter), "Segoe UI", Arial, sans-serif;
+}
+.sn-app :focus-visible { outline-color: var(--accent); }
+
+/* Backdrop: poster wall is visible on the empty state, then recedes once cues exist. */
+.sn-app::before { filter: blur(5px) saturate(.9); transform: scale(1.05); }
+.sn-app::after {
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(229, 72, 77, .16), transparent 60%),
+    linear-gradient(180deg, rgba(11, 8, 8, calc(var(--sn-dim, .78) - .3)) 0%, rgba(11, 8, 8, .93) 78%);
+  transition: background .5s;
+}
+.sn-app:has(.sn-cue)::after { background: rgba(11, 8, 8, .95); }
+
+/* Header + title: drop the old green cards; let type carry the hierarchy. */
+.sn-topbar, .sn-title-row, .sn-footer { background: transparent; }
+.sn-title-row { padding: 8px 0 4px; }
+.sn-title-row h1 { font-size: 32px; letter-spacing: -1px; }
+.sn-title-row p { font-size: 15px; max-width: 46ch; }
+.sn-pro-mark { background: var(--accent); color: #fff; border-radius: 6px; padding: 2px 7px; font-size: 11px; vertical-align: middle; }
+.sn-language span:last-child { color: var(--accent); }
+
+/* Working surfaces are solid so subtitles stay legible. */
+.sn-ready-mark { background: var(--ok); color: #0b0808; }
+
+/* Controls */
+.sn-primary { background: var(--accent); color: #fff; font-weight: 600; box-shadow: 0 8px 24px -10px rgba(229, 72, 77, .7); }
+.sn-app .sn-primary:hover:not(:disabled) { background: #f0585d; color: #fff; }
+.sn-app .sn-primary:disabled { background: var(--raised); color: var(--faint); box-shadow: none; }
+.sn-secondary, .sn-outline-small { border-color: var(--control); }
+.sn-secondary:hover:not(:disabled), .sn-outline-small:hover:not(:disabled) { border-color: var(--accent); }
+.sn-dropzone { border-color: rgba(229, 72, 77, .45); background: var(--accent-soft); }
+.sn-dropzone:hover, .sn-dropzone.is-dragging { border-style: solid; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.sn-style.is-selected, .sn-format-option.is-selected { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.sn-tabs [aria-selected="true"] { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.sn-cue { border-bottom-color: var(--line); }
+.sn-cue-editing { background: var(--accent-soft); }
+.sn-cue-text[lang="si"], .sn-dual-translation p { font-size: 1.12em; }
+.sn-dual-label { color: var(--faint); }
+.sn-track div { background: var(--accent); }
+.sn-dot.is-active { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.sn-event-dot.success { background: var(--ok); }
+.sn-guide { background: var(--surface); }
+.sn-footer-sep { color: var(--accent); }
+
+/* Recolour of V4.2 account dock + V4.3 provider strip (green → noir/red). */
+.sn-account-trigger { background: rgba(20, 16, 16, .96); border-color: var(--control); color: var(--text); }
+.sn-account-trigger svg { color: var(--accent); }
+.sn-account-trigger:hover { background: var(--raised); border-color: var(--accent); color: #fff; }
+.sn-account-sidebar { background: var(--surface); border-left-color: var(--control); }
+.sn-account-sidebar-head { border-bottom-color: var(--line); }
+.sn-account-identity-icon { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.sn-account-close { background: var(--raised); border-color: var(--control); }
+.sn-account-close:hover { background: var(--control); }
+.sn-account-sidebar-body > section a[style*="background"],
+.sn-account-sidebar-body > section button[style*="background"] { background: var(--accent) !important; color: #fff !important; }
+.sn-account-sidebar-body > section label > input:not([type="checkbox"]) { background: var(--raised) !important; border-color: var(--control); }
+.sn-account-sidebar-body > section label > input[type="checkbox"], .sn-backdrop-popover input[type="range"] { accent-color: var(--accent); }
+.sn-backdrop-settings > summary, .sn-backdrop-popover { background: var(--raised); border-color: var(--control); color: var(--text); }
+.sn-backdrop-settings > summary:hover, .sn-backdrop-settings[open] > summary { background: var(--control); border-color: var(--accent); }
+.sn-backdrop-popover strong { color: var(--accent); }
+.sn-v43-status { background: rgba(20, 16, 16, .95); border-color: var(--line); }
+.sn-v43-connected .sn-v43-dot { background: var(--ok); }
+.sn-v43-offline .sn-v43-dot, .sn-v43-disconnected .sn-v43-dot { background: var(--accent); }
+
+/* ===== v2: one top-to-bottom flow, no boxed cards, nav bar, motion ===== */
+html { scroll-behavior: smooth; }
+.sn-app { --ease: cubic-bezier(.22, .8, .24, 1); }
+
+/* Sections are bands separated by hairlines, not cards. */
+.sn-workspace { display: flex; flex-direction: column; gap: 0; }
+.sn-results { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.sn-panel { background: transparent; border: 0; border-radius: 0; padding: 32px 0; border-top: 1px solid var(--line); scroll-margin-top: 76px; }
+.sn-workspace > .sn-setup { border-top: 0; max-width: 760px; }
+.sn-setup > .sn-primary { max-width: 420px; }
+.sn-styles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sn-styles > legend { grid-column: 1 / -1; }
+/* reading order after the setup band: progress → studio → download → glossary */
+.sn-results > .sn-status { order: 1; }
+.sn-results > .sn-preview { order: 2; }
+.sn-results > .sn-ready { order: 3; }
+.sn-results > .sn-glossary { order: 4; }
+.sn-ready { border-top-color: var(--ok); }
+
+/* Navigation bar (sticky). Works as plain <ol>, or as links if you use the <nav> markup. */
+.sn-steps { counter-reset: s; position: sticky; top: 0; z-index: 30; display: flex; align-items: stretch; list-style: none; margin: 0 0 8px; padding: 0 22px; border-bottom: 1px solid var(--line); background: rgba(11, 8, 8, .82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.sn-steps li, .sn-steps a { counter-increment: s; position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; flex: 1; min-height: 54px; padding: 0 12px; color: var(--faint); font-size: 13px; text-decoration: none; background: transparent; border: 0; transition: color .3s var(--ease), background .3s var(--ease); }
+.sn-steps li::before, .sn-steps a::before { content: counter(s); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--control); font-size: 12px; transition: background .3s var(--ease), border-color .3s var(--ease), color .3s var(--ease), transform .3s var(--ease); }
+.sn-steps li::after, .sn-steps a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .45s var(--ease); }
+.sn-steps .is-current { color: var(--text); }
+.sn-steps .is-current::before { background: var(--accent); border-color: var(--accent); color: #fff; transform: scale(1.1); }
+.sn-steps .is-current::after { transform: scaleX(1); }
+.sn-steps .is-done { color: var(--muted); }
+.sn-steps .is-done::before { content: "✓"; background: var(--ok); border-color: var(--ok); color: #0b0808; }
+.sn-steps .is-done::after { background: var(--ok); transform: scaleX(1); }
+.sn-steps a:hover { color: var(--text); background: rgba(255, 238, 235, .04); }
+
+/* Preview tabs: segmented control. */
+.sn-tabs { gap: 4px; padding: 4px; width: fit-content; border: 1px solid var(--line); border-radius: 999px; background: rgba(20, 16, 16, .7); }
+.sn-app .sn-tabs button { padding: 7px 16px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); box-shadow: none; transition: background .25s var(--ease), color .25s var(--ease); }
+.sn-app .sn-tabs button:hover { color: var(--text); background: rgba(255, 238, 235, .06); }
+.sn-app .sn-tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+
+/* Leftover green fills → neutral. */
+.sn-language { background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 8px 18px; }
+.sn-app .sn-search-box, .sn-app .sn-search-box input, .sn-app .sn-jump input { background: var(--raised); border-color: var(--control); color: var(--text); }
+.sn-app .sn-search-box:focus-within { border-color: var(--accent); }
+
+/* Account dock stays on the side but collapses to an icon so it never covers content. */
+.sn-account-trigger { top: 50%; transform: translateY(-50%); gap: 0; padding: 10px 12px; transition: background .25s var(--ease), border-color .25s var(--ease); }
+.sn-account-trigger > span:not(.sn-account-trigger-arrow) { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width .4s var(--ease), opacity .25s, margin .4s var(--ease); }
+.sn-account-trigger:hover > span:not(.sn-account-trigger-arrow), .sn-account-trigger:focus-visible > span:not(.sn-account-trigger-arrow) { max-width: 160px; opacity: 1; margin: 0 9px; }
+.sn-account-sidebar { animation: sn-slide .38s var(--ease); }
+.sn-account-scrim { animation: sn-fade .3s ease; }
+
+/* Motion that answers an action: things appear when they are created. */
+@keyframes sn-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes sn-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sn-slide { from { transform: translateX(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sn-ready, .sn-guide, .sn-glossary-body, .sn-floating-ready, .sn-playground-results, .sn-message, .sn-preview-notice { animation: sn-rise .45s var(--ease); }
+.sn-cue { animation: sn-fade .35s ease; }
+.sn-track div { transition: width .6s var(--ease); }
+.sn-app button, .sn-app .sn-dropzone, .sn-app .sn-style, .sn-app .sn-format-option { transition: background .25s var(--ease), border-color .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease), transform .2s var(--ease); }
+.sn-app .sn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+.sn-app .sn-style:hover, .sn-app .sn-format-option:hover { border-color: var(--control); }
+
+@media (max-width: 900px) {
+  .sn-steps { padding: 0 8px; }
+  .sn-steps li span, .sn-steps a span { display: none; }
+  .sn-setup > .sn-primary { position: sticky; bottom: 12px; z-index: 5; max-width: none; }
+  .sn-styles { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .sn-title-row h1 { font-size: 26px; }
+  .sn-app::before { filter: blur(3px); }
+  .sn-account-trigger > span:not(.sn-account-trigger-arrow) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

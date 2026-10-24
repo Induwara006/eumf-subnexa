@@ -432,6 +432,10 @@ async def translate_srt_stream(
     ))
 
     async def generate_progress():
+        # Per-job provider state: inherited by translator worker tasks/threads,
+        # never shared with another Google user or simultaneous SRT request.
+        from subnexa_failover import start_job, take_switch_notice
+        start_job()
         total = len(subtitles)
         originals = [sub.content for sub in subtitles]
         saved = load_progress(job_id)
@@ -536,6 +540,11 @@ async def translate_srt_stream(
                                         seconds=wait_seconds)
                             await asyncio.sleep(wait_seconds)
 
+                    if take_switch_notice():
+                        yield event("activity", stage="provider_fallback",
+                                    message="Gemini unavailable: continuing with Cloudflare backup",
+                                    start=active[0] + 1, end=active[-1] + 1,
+                                    completed=len(saved), total=total)
                     if len(translations) != len(active):
                         raise ValueError("Subtitle count mismatch")
                     if any(not isinstance(value, str) or not value.strip()
