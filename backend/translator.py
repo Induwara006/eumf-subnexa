@@ -165,6 +165,11 @@ class PartialBatchTranslationError(ValueError):
 
 
 def _client():
+    # SubNexa V4.7 MODEL SELECTOR: explicit per-job provider overrides site default.
+    # Legacy requests with no model context preserve the existing provider path.
+    from subnexa_model_router import selected_mode, routed_client
+    if selected_mode() is not None:
+        return routed_client(current_translation_key())
     # SubNexa V4.5 Gemini Cloudflare failover: use per-job, sticky provider routing.
     if os.getenv("SUBNEXA_AI_PROVIDER", "gemini").strip().lower() == "gemini_cloudflare":
         from subnexa_failover import HybridClient, authorized_gemini_key
@@ -294,6 +299,9 @@ def _generate_array(client, prompt: str, expected: int) -> list[str]:
             config={"response_mime_type": "application/json"},
         )
     except Exception as primary_error:
+        from subnexa_model_router import selected_mode
+        if selected_mode() is not None:
+            raise  # Never change providers for an explicit model choice.
         if (os.getenv("SUBNEXA_AI_PROVIDER", "gemini").strip().lower() in ("cloudflare", "gemini_cloudflare")
                 or current_translation_key() or not should_fallback(primary_error)):
             raise

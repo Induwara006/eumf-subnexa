@@ -207,6 +207,28 @@ export default function Home() {
   const [glossarySearch, setGlossarySearch] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [style, setStyle] = useState("natural");
+  // SubNexa V4.7 MODEL SELECTOR: choose Cloudflare or Gemini per translation.
+  const [modelChoice, setModelChoice] = useState<"subnexa_02" | "subnexa_pro">("subnexa_02");
+  const [modelAvailability, setModelAvailability] = useState<{ subnexa_02: boolean; subnexa_pro: boolean } | null>(null);
+  const [modelStatusError, setModelStatusError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API}/subnexa-models`, { credentials: "include", cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) throw new Error("Model availability unavailable");
+        return response.json();
+      })
+      .then(data => {
+        if (cancelled) return;
+        setModelAvailability({
+          subnexa_02: data?.available?.subnexa_02 === true,
+          subnexa_pro: data?.available?.subnexa_pro === true,
+        });
+        setModelStatusError(false);
+      })
+      .catch(() => { if (!cancelled) setModelStatusError(true); });
+    return () => { cancelled = true; };
+  }, []);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("srt");
   const [openingCredit, setOpeningCredit] = useState(true);
   const [readyDownload, setReadyDownload] = useState<ReadyDownload | null>(null);
@@ -462,8 +484,21 @@ export default function Home() {
         notify("Sign in with Google in the account panel before translating.", true);
         return;
       }
-      if (account.connected !== true) {
+      if (modelChoice === "subnexa_02" && account.connected !== true) {
         notify("AI provider not connected. Open the Google account panel to check your connection. No translation request was sent.", true);
+        return;
+      }
+      // Re-check server availability immediately before a paid AI translation.
+      // The backend repeats this check and never silently swaps selected providers.
+      const modelsReply = await fetch(`${API}/subnexa-models`, {
+        credentials: "include", cache: "no-store",
+      });
+      if (!modelsReply.ok) throw new Error("Model availability endpoint unavailable");
+      const models = await modelsReply.json();
+      if (models?.available?.[modelChoice] !== true) {
+        notify(modelChoice === "subnexa_pro"
+          ? "SubNexa Pro is unavailable. Gemini has not been configured on this server. No translation request was sent."
+          : "SubNexa 0.2 is unavailable. Cloudflare AI is not configured. No translation request was sent.", true);
         return;
       }
     } catch {
@@ -492,6 +527,7 @@ export default function Home() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("style", style);
+      formData.append("model_choice", modelChoice);
       formData.append("glossary", JSON.stringify(glossaryRules));
       formData.append("output_format", exportFormat);
       formData.append("opening_credit", String(openingCredit));
@@ -859,7 +895,7 @@ export default function Home() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-3xl font-semibold tracking-tight sm:text-[2.1rem]">Translation workspace</h1>
-              <Badge className="h-5 rounded-md bg-primary/15 px-2 text-[10px] font-semibold tracking-[0.14em] text-primary ring-1 ring-primary/30">PRO</Badge>
+              <Badge className="h-5 rounded-md bg-primary/15 px-2 text-[10px] font-semibold tracking-[0.14em] text-primary ring-1 ring-primary/30">{modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
             </div>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
               Bring the story into Sinhala. Every timestamp stays exactly where it belongs.
@@ -986,6 +1022,42 @@ export default function Home() {
                 <CardDescription className="mt-1 text-xs">Choose how the Sinhala dialogue should read.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                {/* SubNexa V4.7: user-controlled AI model selection; preserve existing Shadcn theme. */}
+                <div className="space-y-2.5">
+                  <Label className="text-xs text-muted-foreground">Choose your AI model</Label>
+                  <RadioGroup value={modelChoice}
+                    onValueChange={value => { setModelChoice(value as "subnexa_02" | "subnexa_pro"); resetTranslationResult(); }}
+                    disabled={loading} className="grid gap-2 sm:grid-cols-2">
+                    {([
+                      { id: "subnexa_02" as const, title: "SubNexa 0.2", provider: "Cloudflare AI", tier: "Normal Translation", usage: "Low Credit Usage" },
+                      { id: "subnexa_pro" as const, title: "SubNexa Pro", provider: "Google Gemini", tier: "Premium Translation", usage: "High Credit Usage" },
+                    ]).map(option => {
+                      const active = modelChoice === option.id;
+                      const unavailable = modelAvailability?.[option.id] === false;
+                      return (
+                        <Label key={option.id} htmlFor={`ai-model-${option.id}`}
+                          className={cn("flex min-h-32 cursor-pointer flex-col gap-2 rounded-lg border border-border/70 bg-background/40 p-3 transition-colors hover:border-primary/40",
+                            active && "border-primary/60 bg-primary/10",
+                            unavailable && "cursor-not-allowed opacity-55")}>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-semibold">{option.title}</span>
+                            <RadioGroupItem value={option.id} id={`ai-model-${option.id}`} disabled={unavailable} />
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{option.provider}</span>
+                          <span className="text-xs font-medium">{option.tier}</span>
+                          <span className="text-[11px] text-muted-foreground">{option.usage}</span>
+                          {unavailable && <span className="text-[11px] text-warning">Currently unavailable — provider not configured</span>}
+                        </Label>
+                      );
+                    })}
+                  </RadioGroup>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Credit labels describe relative expected usage, not a verified cost, quota or credit balance.
+                    {modelStatusError ? " Model availability could not be checked; translation will verify again." :
+                      modelAvailability === null ? " Checking model availability…" : ""}
+                  </p>
+                </div>
+                <Separator />
                 <div className="space-y-2.5">
                   <Label className="text-xs text-muted-foreground">Translation style</Label>
                   <RadioGroup

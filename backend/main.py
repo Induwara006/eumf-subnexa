@@ -366,14 +366,33 @@ async def translate_srt(
 from fastapi.responses import StreamingResponse
 
 
+
+
+# SubNexa V4.7 MODEL SELECTOR: configuration availability only, not live quota.
+@app.get("/subnexa-models")
+async def subnexa_models():
+    from subnexa_model_router import availability
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"available": availability(), "credits_verified": False},
+                        headers={"Cache-Control": "no-store"})
+
 @app.post("/translate-srt-stream")
 async def translate_srt_stream(
     file: UploadFile = File(...),
     style: str = Form("natural"),
     glossary: str = Form("[]"),
     output_format: str = Form("srt"),
-    opening_credit: bool = Form(False)
+    opening_credit: bool = Form(False),
+    model_choice: str = Form("subnexa_02")
 ):
+    # SubNexa V4.7: model choice is validated on the server, not trusted from UI.
+    from subnexa_model_router import availability, VALID_MODES
+    if model_choice not in VALID_MODES:
+        raise HTTPException(status_code=400, detail="Unknown SubNexa AI model")
+    if not availability()[model_choice]:
+        raise HTTPException(status_code=503, detail=(
+            "SubNexa Pro (Gemini) is not configured yet" if model_choice == "subnexa_pro"
+            else "SubNexa 0.2 (Cloudflare) is not configured yet"))
     # Validate file
     if not file.filename or not file.filename.lower().endswith(".srt"):
         raise HTTPException(
@@ -428,7 +447,7 @@ async def translate_srt_stream(
 
 
     job_id = get_job_id(content, style, pipeline_version=(
-        GLOSSARY_PIPELINE_VERSION + ":" + glossary_fingerprint(glossary_rules)
+        GLOSSARY_PIPELINE_VERSION + ":" + glossary_fingerprint(glossary_rules) + ":model:" + model_choice
     ))
 
     async def generate_progress():
@@ -650,8 +669,18 @@ async def translate_srt_stream(
         yield event("complete", **data)
 
 
+    async def subnexa_v47_selected_progress():
+        # SubNexa V4.7 MODEL SELECTOR: no global env mutations, safe concurrent jobs.
+        from subnexa_model_router import set_mode, reset_mode
+        token = set_mode(model_choice)
+        try:
+            async for chunk in generate_progress():
+                yield chunk
+        finally:
+            reset_mode(token)
+
     return StreamingResponse(
-        generate_progress(),
+        subnexa_v47_selected_progress(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
