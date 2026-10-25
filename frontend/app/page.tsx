@@ -1029,8 +1029,8 @@ export default function Home() {
                     onValueChange={value => { setModelChoice(value as "subnexa_02" | "subnexa_pro"); resetTranslationResult(); }}
                     disabled={loading} className="grid gap-2 sm:grid-cols-2">
                     {([
-                      { id: "subnexa_02" as const, title: "SubNexa 0.2", provider: "Cloudflare AI", tier: "Normal Translation", usage: "Low Credit Usage" },
-                      { id: "subnexa_pro" as const, title: "SubNexa Pro", provider: "Google Gemini", tier: "Premium Translation", usage: "High Credit Usage" },
+                      { id: "subnexa_02" as const, title: "SubNexa 0.2", provider: "", tier: "Normal Translation", usage: "Low Credit Usage" },
+                      { id: "subnexa_pro" as const, title: "SubNexa Pro", provider: "", tier: "Premium Translation", usage: "High Credit Usage" },
                     ]).map(option => {
                       const active = modelChoice === option.id;
                       const unavailable = modelAvailability?.[option.id] === false;
