@@ -428,10 +428,13 @@ async def translate_srt_stream(
             detail="No subtitles found."
         )
 
-    if len(subtitles) > 1500:
+    # SubNexa 0.2 supports 2,000+ subtitle lines by processing multiple safe batches.
+    # Preserve the existing Gemini Pro 1,500-entry limit exactly as before.
+    max_subtitles = 5000 if model_choice == "subnexa_02" else 1500
+    if len(subtitles) > max_subtitles:
         raise HTTPException(
             status_code=400,
-            detail="Maximum 1500 subtitles allowed."
+            detail=f"Maximum {max_subtitles} subtitles allowed."
         )
 
     try:
@@ -489,22 +492,29 @@ async def translate_srt_stream(
             yield event("activity", stage="glossary", count=len(glossary_rules))
             print(f"[SubNexa Glossary] {len(glossary_rules)} rules active", flush=True)
 
+        # SubNexa V4.8 CLOUDFLARE NORMAL: up to 1,000 lines per request,
+        # reduced by conservative text budget to avoid truncated Cloudflare JSON.
+        # Gemini's existing adaptive planner is unchanged.
+        from subnexa_model_router import selected_mode
+        from subnexa_cf_normal_v48 import select_cloudflare_batch
+        cf_normal = selected_mode() == "subnexa_02"
         remaining = [i for i in range(total) if str(i) not in saved]
         planner = AdaptiveBatchPlanner()
         while remaining:
-            indexes = planner.select(remaining, originals)
+            indexes = (select_cloudflare_batch(remaining, originals) if cf_normal
+                       else planner.select(remaining, originals))
             remaining = remaining[len(indexes):]
             queue = [indexes]
             had_split = False
             print(f"[SubNexa] adaptive batch: {len(indexes)} entries "
-                  f"(target={planner.target_lines}, "
+                  f"(target={1000 if cf_normal else planner.target_lines}, "
                   f"english_chars={sum(len(originals[i]) for i in indexes)})",
                   flush=True)
             # Existing frontend ignores unknown stages, but the normal
             # translation/review/progress events still render as before.
             yield event("activity", stage="batch_planned", count=len(indexes),
                         start=indexes[0] + 1, end=indexes[-1] + 1,
-                        target=planner.target_lines)
+                        target=(1000 if cf_normal else planner.target_lines))
 
             while queue:
                 part = queue.pop(0)
@@ -616,7 +626,7 @@ async def translate_srt_stream(
                     return
 
                 except Exception as error:
-                    if _can_split(error) and len(active) > 1:
+                    if (_can_split(error) or (cf_normal and getattr(error, "category", None) == "response")) and len(active) > 1:
                         had_split = True
                         planner.shrink(len(active))
                         middle = len(active) // 2
