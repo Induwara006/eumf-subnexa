@@ -1,5 +1,5 @@
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import srt
 import asyncio
@@ -376,6 +376,40 @@ async def subnexa_models():
     return JSONResponse({"available": availability(), "credits_verified": False},
                         headers={"Cache-Control": "no-store"})
 
+
+# SubNexa V5.0 local single-process cooperative job controls.
+# Multi-worker deployments need shared durable coordination and authenticated ownership.
+import secrets
+import hmac
+from subnexa_auth import current_user_sub
+
+_ACTIVE_TRANSLATIONS = {}
+
+class TranslationControlRequest(BaseModel):
+    token: str
+    action: str
+
+@app.post("/translation/control")
+async def control_translation(request: TranslationControlRequest, http_request: Request):
+    # The Google middleware protects /translate* but intentionally does not wrap
+    # /translation/control. Verify the signed session on this route explicitly.
+    # Origin protection prevents cross-site form/fetch control requests.
+    from subnexa_auth import _user, FRONTEND
+    if http_request.headers.get("origin") != FRONTEND:
+        raise HTTPException(status_code=403, detail="Untrusted origin")
+    user = _user(http_request)
+    if request.action not in ("pause", "stop"):
+        raise HTTPException(status_code=400, detail="Unknown translation action")
+    # Match an unpredictable server-issued token AND its authenticated owner.
+    record = next((value for key, value in _ACTIVE_TRANSLATIONS.items()
+                   if hmac.compare_digest(key, request.token)), None)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Translation no longer active")
+    if record["owner"] != user["sub"]:
+        raise HTTPException(status_code=403, detail="Not your translation")
+    record["action"] = request.action
+    return {"accepted": True, "state": "stopping" if request.action == "stop" else "pausing"}
+
 @app.post("/translate-srt-stream")
 async def translate_srt_stream(
     file: UploadFile = File(...),
@@ -453,6 +487,16 @@ async def translate_srt_stream(
         GLOSSARY_PIPELINE_VERSION + ":" + glossary_fingerprint(glossary_rules) + ":model:" + model_choice
     ))
 
+    # Issue a unique token per active browser stream. Never use a guessed/cached job ID
+    # as authority for interruption. Block duplicate active streams for the same cache.
+    from subnexa_auth import current_user_sub
+    owner = current_user_sub()
+    if any(rec["job_id"] == job_id for rec in _ACTIVE_TRANSLATIONS.values()):
+        raise HTTPException(status_code=409, detail="This subtitle translation is already running")
+    control_token = secrets.token_urlsafe(32)
+    control_record = {"job_id": job_id, "owner": owner, "action": None}
+    _ACTIVE_TRANSLATIONS[control_token] = control_record
+
     async def generate_progress():
         # Per-job provider state: inherited by translator worker tasks/threads,
         # never shared with another Google user or simultaneous SRT request.
@@ -484,7 +528,22 @@ async def translate_srt_stream(
 
         completed = len(saved)
         yield event("resume_status", resumed=completed > 0,
-                    completed=completed, total=total)
+                    completed=completed, total=total, control_token=control_token)
+
+        def interruption_event(action_override=None):
+            # Only exported completed nonblank translations; keep original timestamps.
+            partial = [srt.Subtitle(index=i + 1, start=sub.start, end=sub.end,
+                                    content=saved[str(i)])
+                       for i, sub in enumerate(subtitles)
+                       if str(i) in saved and saved[str(i)].strip()]
+            content = srt.compose(partial, reindex=True) if partial else ""
+            name = download_filename(file.filename, "srt")
+            name = name.removesuffix("_generated_by_subnexa_ai.srt")
+            name = f"{name}_draft_{len(partial)}_of_{total}.srt"
+            return event("interrupted", action=action_override or control_record["action"] or "paused",
+                         completed=len(saved), total=total, draft_count=len(partial),
+                         filename=name, content=content)
+
         yield event("progress", completed=completed, total=total)
         yield event("activity", stage="ready", message="Translation job ready",
                     completed=completed, total=total)
@@ -501,6 +560,10 @@ async def translate_srt_stream(
         remaining = [i for i in range(total) if str(i) not in saved]
         planner = AdaptiveBatchPlanner()
         while remaining:
+            if control_record["action"]:
+                save_progress(job_id, saved)
+                yield interruption_event()
+                return
             indexes = (select_cloudflare_batch(remaining, originals) if cf_normal
                        else planner.select(remaining, originals))
             remaining = remaining[len(indexes):]
@@ -517,6 +580,10 @@ async def translate_srt_stream(
                         target=(1000 if cf_normal else planner.target_lines))
 
             while queue:
+                if control_record["action"]:
+                    save_progress(job_id, saved)
+                    yield interruption_event()
+                    return
                 part = queue.pop(0)
                 active = [i for i in part if str(i) not in saved]
                 if not active:
@@ -593,6 +660,10 @@ async def translate_srt_stream(
                                     count=len(error.valid_translations))
                         yield event("progress", completed=len(saved), total=total)
 
+                    if control_record["action"]:
+                        yield interruption_event()
+                        return
+
                     unresolved = [active[i] for i in error.invalid_indexes]
                     print(f"[SubNexa] preserved {len(error.valid_translations)} "
                           f"valid lines; targeted retry for "
@@ -618,14 +689,15 @@ async def translate_srt_stream(
                         continue
                     print(f"[SubNexa] paused: unrepaired subtitle(s) "
                           f"{[i + 1 for i in unresolved]}", flush=True)
-                    yield event("activity", stage="paused", count=len(unresolved))
-                    yield event("error", message=(
-                        "Translation paused. Valid subtitles are saved. "
-                        "Try again later to resume."
-                    ))
+                    yield event("activity", stage="failed", count=len(unresolved))
+                    yield interruption_event("failed")
                     return
 
                 except Exception as error:
+                    if control_record["action"]:
+                        save_progress(job_id, saved)
+                        yield interruption_event()
+                        return
                     if (_can_split(error) or (cf_normal and getattr(error, "category", None) == "response")) and len(active) > 1:
                         had_split = True
                         planner.shrink(len(active))
@@ -641,11 +713,8 @@ async def translate_srt_stream(
                           f"{active[0] + 1}: {type(error).__name__}: {error}",
                           flush=True)
                     save_progress(job_id, saved)
-                    yield event("activity", stage="paused", count=len(active))
-                    yield event("error", message=(
-                        "Translation paused. Completed subtitles are saved. "
-                        "Try again later to resume."
-                    ))
+                    yield event("activity", stage="failed", count=len(active))
+                    yield interruption_event("failed")
                     return
 
                 for i, translated_text in zip(active, translations):
@@ -660,10 +729,17 @@ async def translate_srt_stream(
                 yield event("activity", stage="saved", count=len(translations))
                 yield event("progress", completed=len(saved), total=total)
                 await asyncio.sleep(0)
+                if control_record["action"]:
+                    yield interruption_event()
+                    return
 
             if not had_split:
                 planner.success()
 
+        if control_record["action"]:
+            save_progress(job_id, saved)
+            yield interruption_event()
+            return
         rendered, credit_added = render_subtitles(
             subtitles, output_format, opening_credit
         )
@@ -687,6 +763,7 @@ async def translate_srt_stream(
             async for chunk in generate_progress():
                 yield chunk
         finally:
+            _ACTIVE_TRANSLATIONS.pop(control_token, None)
             reset_mode(token)
 
     return StreamingResponse(

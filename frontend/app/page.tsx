@@ -20,6 +20,8 @@ import {
   Lock,
   Pencil,
   Play,
+  Pause,
+  Square,
   Plus,
   RotateCcw,
   Search,
@@ -235,6 +237,10 @@ export default function Home() {
   const hasReadyDownload = readyDownload !== null;
   const [loading, setLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [interruption, setInterruption] = useState<"paused" | "stopped" | "failed" | null>(null);
+  const [controlPending, setControlPending] = useState<"pause" | "stop" | null>(null);
+  const [resumeRequested, setResumeRequested] = useState(false);
+  const controlToken = useRef<string | null>(null);
   const [resuming, setResuming] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
@@ -260,6 +266,12 @@ export default function Home() {
   const previewViewport = useRef<HTMLDivElement>(null);
   const readyCardRef = useRef<HTMLDivElement>(null);
   const nextActivityId = useRef(0);
+
+  // V5.0.3.2: scroll to the existing action only after Stop is confirmed.
+  useEffect(() => {
+    if (interruption !== "stopped" || translating) return;
+    document.getElementById("sn-translate-action")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [interruption, translating]);
 
   useEffect(() => {
     try {
@@ -395,6 +407,29 @@ export default function Home() {
     toast.success("Download started");
   }
 
+  async function requestTranslationControl(action: "pause" | "stop") {
+    const token = controlToken.current;
+    if (!token || !translating || controlPending) return;
+    if (action === "stop" && !window.confirm("Stop translation? Saved Sinhala subtitles will remain available as a draft.")) return;
+    setControlPending(action);
+    logActivity(action === "pause" ? "User requested to hold translation" : "User requested to stop translation",
+      "Requesting server confirmation; current batch may still be processing.", "warn");
+    notify(action === "pause" ? "User requested to hold translation. Waiting for current batch to finish…"
+      : "User requested to stop translation. Waiting for current batch to finish…");
+    try {
+      const reply = await fetch(`${API}/translation/control`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, action }),
+      });
+      if (!reply.ok) throw new Error(`Translation control request not accepted (HTTP ${reply.status}).`);
+      notify(action === "stop" ? "Stopping after the current batch is saved…" : "Pausing after the current batch is saved…");
+    } catch (err) {
+      setControlPending(null);
+      notify(err instanceof Error ? err.message : "Could not contact backend.", true);
+    }
+  }
+
   function pickFile(f: File | null) {
     if (loading) return;
     if (f && editedIndices.length && !window.confirm("Your manual subtitle edits have not been downloaded. Replace this file anyway?")) return;
@@ -407,6 +442,10 @@ export default function Home() {
       return;
     }
     setFile(f);
+    setInterruption(null);
+    setControlPending(null);
+    setResumeRequested(false);
+    controlToken.current = null;
     setReadyDownload(null);
     setSourceText("");
     setCueSearch("");
@@ -465,7 +504,15 @@ export default function Home() {
     }
   }
 
-  async function handleTranslate() {
+  function requestResumeTranslation() {
+    if (!file || loading || translating || resumeRequested) return;
+    setResumeRequested(true);
+    logActivity("User requested to resume translation", "Checking session and reconnecting to saved progress…");
+    notify("User requested to resume translation. Connecting to saved progress…");
+    void handleTranslate(true).finally(() => setResumeRequested(false));
+  }
+
+  async function handleTranslate(isResume = false) {
     if (editedIndices.length && !window.confirm("Your manual subtitle edits have not been downloaded. Start a new translation anyway?")) return;
     if (!file) {
       notify("Select an SRT file first.", true);
@@ -507,6 +554,9 @@ export default function Home() {
     }
 
     setReadyDownload(null);
+    setInterruption(null);
+    setControlPending(null);
+    controlToken.current = null;
     setEditingCue(null);
     setEditedIndices([]);
     setCueSearch("");
@@ -519,8 +569,8 @@ export default function Home() {
     setTranslatedCount(0);
     setTotalCount(0);
     setActivity([]);
-    logActivity("Starting translation", "Connecting to SubNexa AI...");
-    notify("Starting translation...");
+    logActivity(isResume ? "Reconnecting to saved translation" : "Starting translation", "Connecting to SubNexa AI...");
+    notify(isResume ? "User requested to resume translation. Connecting to saved progress…" : "Starting translation...");
 
     try {
       setSourceText(await file.text());
@@ -611,6 +661,9 @@ export default function Home() {
             case "paused":
               logActivity("Translation paused", "Completed work was saved", "warn");
               break;
+            case "failed":
+              logActivity("AI translation interrupted", "Saved subtitles can be downloaded as a draft", "warn");
+              break;
             case "done":
               logActivity("All subtitles complete", `${count} entries processed`, "success");
               break;
@@ -618,6 +671,8 @@ export default function Home() {
         }
 
         if (data.type === "resume_status") {
+          if (typeof data.control_token === "string") controlToken.current = data.control_token;
+          setResumeRequested(false);
           setResuming(data.resumed === true);
           if (data.resumed === true) {
             logActivity("Resuming saved translation", `${data.completed}/${data.total} already finished`, "success");
@@ -641,6 +696,22 @@ export default function Home() {
           }
         }
 
+        if (data.type === "interrupted") {
+          completed = true;
+          const action = data.action === "stop" ? "stopped" : data.action === "failed" ? "failed" : "paused";
+          setInterruption(action);
+          setControlPending(null);
+          const draft = typeof data.content === "string" ? data.content : "";
+          if (draft && typeof data.filename === "string") {
+            setReadyDownload({ content: draft, originalContent: draft,
+              filename: data.filename, format: "srt", creditAdded: false, creditRequested: false });
+            setTab("translated");
+          }
+          const label = action === "stopped" ? "Stopped by user" : action === "paused" ? "Paused by user" : "AI translation interrupted (not stopped by user)";
+          logActivity(label, `${data.draft_count ?? 0} translated subtitles preserved`, action === "failed" ? "warn" : "success");
+          notify(`${label}. ${data.draft_count ?? 0} translated subtitles saved. ${draft ? "Draft SRT ready to download." : "No translated subtitles yet."}`, action === "failed" && !draft);
+        }
+
         if (data.type === "complete") {
           const content = data.content ?? data.srt;
           if (typeof content !== "string") {
@@ -650,6 +721,7 @@ export default function Home() {
           const originalName = (file?.name ?? "subtitles.srt").replace(/\.srt$/i, "").trim() || "subtitles";
           const filename = `${originalName}_generated_by_subnexa_ai.${finalFormat}`;
           completed = true;
+          setInterruption(null);
           setTab("translated");
           setProgress(100);
           setReadyDownload({ content, originalContent: content, filename, format: finalFormat,
@@ -688,18 +760,25 @@ export default function Home() {
       logActivity("Translation error", reason, "warn");
       notify(reason, true);
     } finally {
+      controlToken.current = null;
+      setControlPending(null);
       setLoading(false);
       setTranslating(false);
     }
   }
 
   const showProgress = translating || progress > 0;
-  const done = !translating && progress === 100 && !isError && readyDownload !== null;
+  const done = !translating && progress === 100 && !isError && readyDownload !== null && interruption === null;
 
   const statusTitle = translating
-    ? resuming ? "Resuming translation" : "Translating"
+    ? controlPending === "pause" ? "Pause requested — finishing current batch"
+      : controlPending === "stop" ? "Stop requested — finishing current batch"
+      : resumeRequested || resuming ? "Resuming translation" : "Translating"
     : done ? "Translation complete"
-    : isError ? "Translation paused" : "Ready to translate";
+    : interruption === "stopped" ? "Stopped by user"
+    : interruption === "paused" ? "Paused by user"
+    : interruption === "failed" ? "AI translation interrupted"
+    : isError ? "Translation interrupted" : "Ready to translate";
 
   const sourceCues = useMemo(() => parseStudioCues(sourceText || preview, "srt"), [sourceText, preview]);
   const translatedCues = useMemo(() => parseStudioCues(readyDownload?.content || "", readyDownload?.format || "srt"), [readyDownload]);
@@ -770,6 +849,7 @@ export default function Home() {
   function resetTranslationResult() {
     if (translating) return;
     setReadyDownload(null);
+    setInterruption(null);
     setEditedIndices([]);
     setEditingCue(null);
     setProgress(0);
@@ -1131,14 +1211,15 @@ export default function Home() {
 
                 <div className="space-y-2">
                   <Button
+                    id="sn-translate-action"
                     size="lg"
                     className="h-11 w-full justify-between rounded-lg text-sm font-semibold shadow-lg shadow-primary/20"
-                    onClick={handleTranslate}
-                    disabled={loading || !file}
+                    onClick={() => interruption === "stopped" ? requestResumeTranslation() : void handleTranslate()}
+                    disabled={loading || !file || resumeRequested}
                   >
                     <span className="flex items-center gap-2">
                       {translating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                      {translating ? "Translating…" : "Translate to Sinhala"}
+                      {translating ? "Translating…" : interruption === "stopped" ? (resumeRequested ? "Continue requested…" : "Continue Translate") : "Translate to Sinhala"}
                     </span>
                     <ArrowRight className="size-4" />
                   </Button>
@@ -1181,7 +1262,7 @@ export default function Home() {
                       isError && "border-warning/40 text-warning",
                     )}
                   >
-                    {translating ? "In progress" : done ? "Complete" : isError ? "Stopped" : "Standby"}
+                    {translating ? (controlPending === "pause" ? "Pause requested" : controlPending === "stop" ? "Stop requested" : resumeRequested ? "Resume requested" : "In progress") : done ? "Complete" : interruption === "paused" ? "Paused by user" : interruption === "stopped" ? "Stopped by user" : interruption === "failed" ? "AI error" : isError ? "Error" : "Standby"}
                   </Badge>
                 </div>
               </CardHeader>
@@ -1193,6 +1274,30 @@ export default function Home() {
                   <span className="font-mono text-2xl leading-none text-foreground">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-1.5" aria-label="Translation progress" />
+                {translating && (
+                  <div className="flex flex-wrap gap-2" aria-label="Translation controls">
+                    <Button type="button" variant="outline" size="sm" disabled={!controlToken.current || controlPending !== null}
+                      onClick={() => void requestTranslationControl("pause") }>
+                      <Pause className="size-3.5" />Pause
+                    </Button>
+                    <Button type="button" variant="destructive" size="sm" disabled={!controlToken.current || controlPending !== null}
+                      onClick={() => void requestTranslationControl("stop") }>
+                      <Square className="size-3.5" />Stop
+                    </Button>
+                    {controlPending && <span role="status" className="text-xs text-muted-foreground">{controlPending === "pause" ? "User requested to hold translation — waiting for current batch…" : "User requested to stop translation — waiting for current batch…"}</span>}
+                  </div>
+                )}
+                {!translating && (interruption === "paused" || interruption === "failed") && (
+                  <Button type="button" size="sm" onClick={requestResumeTranslation} disabled={!file || resumeRequested}>
+                    <Play className="size-3.5" />{resumeRequested ? "Resume requested — connecting…" : "Resume translation"}
+                  </Button>
+                )}
+                {resumeRequested && !translating && (
+                  <p role="status" className="text-xs text-muted-foreground">User requested to resume translation — checking session and waiting for server response…</p>
+                )}
+                {!translating && interruption && readyDownload && (
+                  <p className="text-xs text-muted-foreground">Draft ready: {readyDownload.filename}. Translation progress remains saved.</p>
+                )}
                 <div className="space-y-2 border-t border-border/60 pt-4">
                   <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                     <span>Live activity</span>
@@ -1354,8 +1459,8 @@ export default function Home() {
                         <CheckCircle2 className="size-5" />
                       </span>
                       <div className="min-w-0">
-                        <CardTitle className="text-sm">Your file is ready</CardTitle>
-                        <p className="mt-1 text-xs text-muted-foreground">Translation finished. Nothing downloads until you click.</p>
+                        <CardTitle className="text-sm">{interruption ? "Your draft is ready" : "Your file is ready"}</CardTitle>
+                        <p className="mt-1 text-xs text-muted-foreground">{interruption ? "Partial Sinhala SRT. Nothing downloads until you click." : "Translation finished. Nothing downloads until you click."}</p>
                         <p className="mt-2 truncate font-mono text-[11px] text-foreground/80">{readyDownload.filename}</p>
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           {editedIndices.length > 0 ? `${editedIndices.length} manually edited line(s) included · ` : ""}
@@ -1366,7 +1471,7 @@ export default function Home() {
                       </div>
                     </div>
                     <Button size="lg" className="h-10 shrink-0 gap-2 self-start sm:self-auto" onClick={downloadTranslatedFile}>
-                      <ArrowDownToLine className="size-4" />Download subtitles
+                      <ArrowDownToLine className="size-4" />{interruption ? "Download draft SRT" : "Download subtitles"}
                     </Button>
                   </CardContent>
                 </Card>

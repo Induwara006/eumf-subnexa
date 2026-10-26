@@ -30,12 +30,15 @@ type Session = {
   name?: string;
   email?: string;
   project_id?: string | null;
+  personal_key_connected?: boolean;
+  personal_project_id?: string | null;
   remaining_credits?: number | null;
   quota_notice?: string;
 };
 
-// Use localhost consistently on both ends for local cookie auth.
-const API = (process.env.NEXT_PUBLIC_SUBNEXA_API_URL || "http://localhost:8000").replace(/\/$/, "");
+// Use the same-origin Vercel proxy in production, matching app/page.tsx.
+const API = (process.env.NEXT_PUBLIC_SUBNEXA_API_URL ||
+  (process.env.NODE_ENV === "production" ? "/subnexa-api" : "http://localhost:8000")).replace(/\/$/, "");
 
 export default function SubNexaGoogleAccount() {
   const [session, setSession] = useState<Session | null>(null);
@@ -146,7 +149,7 @@ export default function SubNexaGoogleAccount() {
                   className={cn("h-5 gap-1 border-border/80 px-2 text-[10px] font-normal", connectedTone)}
                 >
                   <span className={cn("size-1.5 rounded-full", session.connected ? "bg-success" : "bg-warning")} />
-                  {session.connected ? "Connected" : "Not connected"}
+                  {session.connected ? "Configured" : "Not configured"}
                 </Badge>
                 <Badge variant="outline" className="h-5 border-border/80 px-2 text-[10px] font-normal text-muted-foreground">
                   {session.provider === "gemini_cloudflare" ? "Gemini + Cloudflare" : session.provider === "cloudflare" ? "Cloudflare" : "Gemini"}
@@ -155,84 +158,98 @@ export default function SubNexaGoogleAccount() {
             </div>
           </div>
 
-          {session.provider === "gemini_cloudflare" ? (
-            <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
-              <p className={cn("flex items-center gap-1.5", connectedTone)}>
-                <CheckCircle2 className="size-3.5" />
-                Gemini primary / Cloudflare backup: {session.connected ? "Configured" : "Not configured"}
-              </p>
-              <p>Gemini primary: <strong className="text-foreground">{session.primary_configured ? "Configured" : "Not configured"}</strong>.</p>
-              <p>Cloudflare backup: <strong className="text-foreground">{session.backup_configured ? "Configured" : "Not configured"}</strong>.</p>
-              <p>When Gemini is temporarily unavailable, SubNexa automatically continues using Cloudflare. Completed subtitle lines remain saved; no provider balance is assumed.</p>
+          <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Cloud className="size-4 text-primary" />
+              <span className="font-medium text-foreground">Site translation service</span>
+              <Badge variant="outline" className="text-[10px]">
+                {session.connected ? "Configured" : "Not configured"}
+              </Badge>
             </div>
-          ) : session.provider === "cloudflare" ? (
-            <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
-              <p className={cn("flex items-center gap-1.5", connectedTone)}>
-                <Cloud className="size-3.5" />
-                Cloudflare Workers AI (server-managed): {session.connected ? "Configured" : "Not configured"}
-              </p>
-              <p>Google Login keeps translation jobs private. This provider uses the site&apos;s shared daily allocation, not a personal Gemini key.</p>
-              <p>Remaining Cloudflare Neurons: <strong className="text-foreground">Not verified</strong>. Live access is tested only by an actual translation request.</p>
-              <p>Cloudflare setup is performed securely on the backend. No provider token is collected in the browser.</p>
+            <p>
+              {session.provider === "gemini_cloudflare"
+                ? "Gemini and Cloudflare can be configured by the site. This does not mean your Google Cloud project is connected."
+                : session.provider === "cloudflare"
+                ? "Cloudflare runs using the site's server credentials and shared allocation, not a personal Google Cloud key."
+                : "Gemini translation requires an authorized credential. This service status is separate from your personal Cloud connection."}
+            </p>
+            {session.quota_notice && <p>{session.quota_notice}</p>}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <KeyRound className="size-4 text-primary" />
+              <span className="text-sm font-medium">Your Google Cloud project</span>
+              <Badge variant="outline" className="text-[10px]">
+                {session.personal_key_connected ? "Connected" : "Not connected"}
+              </Badge>
             </div>
-          ) : session.connected ? (
-            <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
-              <p className="flex items-center gap-1.5 text-success"><CheckCircle2 className="size-3.5" />Your Google Cloud Gemini key is connected.</p>
-              <p>Project: <code className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[11px] text-foreground">{session.project_id}</code></p>
-              <p>Remaining quota: <strong className="text-foreground">Not verified by SubNexa</strong>.</p>
-              <p>Google measures rate limits per project and model. View exact limits in your own Google AI Studio dashboard.</p>
-              <Button asChild variant="outline" size="sm" className="mt-1 h-8 gap-1.5 text-xs">
-                <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">
-                  <ExternalLink className="size-3.5" />Open Google AI Studio
-                </a>
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Connect an <strong className="text-foreground">existing Google Cloud project you own</strong>. Google will ask for separate Cloud permissions before creating a Gemini key. This is for eligible adults only.
-              </p>
-              <div className="space-y-1.5">
-                <Label htmlFor="subnexa-project-id" className="text-[11px]">Your Google Cloud project ID</Label>
-                <Input
-                  id="subnexa-project-id"
-                  value={projectId}
-                  onChange={e => setProjectId(e.target.value)}
-                  placeholder="my-google-project-123"
-                  className="h-9 text-xs"
-                />
+            {session.personal_key_connected ? (
+              <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
+                <p className="flex items-center gap-1.5 text-success">
+                  <CheckCircle2 className="size-3.5" /> Your authorized project is recorded.
+                </p>
+                {session.personal_project_id && <p>
+                  Project: <code className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[11px] text-foreground">{session.personal_project_id}</code>
+                </p>}
+                <p>Remaining Gemini quota: not verified. Limits and billing are managed by Google at project level.</p>
+                <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                  <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">
+                    <ExternalLink className="size-3.5" />Open Google AI Studio
+                  </a>
+                </Button>
+                <p>Disconnect and revocation controls must be added before public release.</p>
               </div>
-              <div className="space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  <Checkbox id="subnexa-eligible" checked={eligible} onCheckedChange={value => setEligible(value === true)} className="mt-0.5" />
-                  <Label htmlFor="subnexa-eligible" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
-                    I am 18+ and eligible to use the Gemini API.
-                  </Label>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Eligible adults can separately authorize an existing Google Cloud project they own.
+                  Google Login alone does not grant Cloud administrative access, an API key, or free quota.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="subnexa-project-id" className="text-[11px]">Your Google Cloud project ID</Label>
+                  <Input
+                    id="subnexa-project-id"
+                    value={projectId}
+                    onChange={e => setProjectId(e.target.value)}
+                    placeholder="my-google-project-123"
+                    className="h-9 text-xs"
+                  />
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <Checkbox id="subnexa-terms" checked={terms} onCheckedChange={value => setTerms(value === true)} className="mt-0.5" />
-                  <Label htmlFor="subnexa-terms" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
-                    I agree to Google&apos;s Gemini API terms and explicitly authorize creation of a key in my Cloud project.
-                  </Label>
+                <div className="space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <Checkbox id="subnexa-eligible" checked={eligible} onCheckedChange={value => setEligible(value === true)} className="mt-0.5" />
+                    <Label htmlFor="subnexa-eligible" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
+                      I am 18+ and eligible to use the Gemini API.
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <Checkbox id="subnexa-terms" checked={terms} onCheckedChange={value => setTerms(value === true)} className="mt-0.5" />
+                    <Label htmlFor="subnexa-terms" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
+                      I agree to the applicable Gemini API terms and authorize key creation in my Cloud project.
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <Checkbox id="subnexa-costs" checked={costs} onCheckedChange={value => setCosts(value === true)} className="mt-0.5" />
+                    <Label htmlFor="subnexa-costs" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
+                      I understand my project's usage may count toward quotas or incur charges if billing is enabled.
+                    </Label>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <Checkbox id="subnexa-costs" checked={costs} onCheckedChange={value => setCosts(value === true)} className="mt-0.5" />
-                  <Label htmlFor="subnexa-costs" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
-                    I understand this can consume my project quota and might incur charges if my project has billing enabled.
-                  </Label>
-                </div>
+                <Button size="lg" className="h-10 w-full gap-2"
+                  disabled={busy || !eligible || !terms || !costs || !projectId.trim()}
+                  onClick={connect}>
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                  {busy ? "Connecting…" : "Authorize Cloud & Create Key"}
+                </Button>
+                <p className="text-[10px] text-muted-foreground">
+                  Not ready for public release until eligibility validation, secure storage and revocation are in place.
+                </p>
               </div>
-              <Button
-                size="lg"
-                className="h-10 w-full gap-2"
-                disabled={busy || !eligible || !terms || !costs || !projectId.trim()}
-                onClick={connect}
-              >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-                {busy ? "Connecting…" : "Authorize Cloud & Create Key"}
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
 
           <Separator />
 

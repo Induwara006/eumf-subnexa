@@ -304,7 +304,8 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
 def session(request: Request):
     user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
     if not user:
-        return {"signed_in": False, "connected": False}
+        return {"signed_in": False, "connected": False,
+                "personal_key_connected": False, "personal_project_id": None}
     row = _get_record(user["sub"])
     # SubNexa V4.4 Cloudflare provider: connection is a SERVER CONFIGURATION
     # status, never an assertion of remaining free Neurons or live model access.
@@ -316,6 +317,9 @@ def session(request: Request):
     provider = "gemini_cloudflare" if using_hybrid else "cloudflare" if using_cloudflare else "gemini"
     return {"signed_in": True, "name": user.get("name", ""),
             "email": user.get("email", ""),
+            # Personal connection is distinct from server-configured providers.
+            "personal_key_connected": bool(row),
+            "personal_project_id": row[0] if row else None,
             "provider": provider,
             "primary_configured": primary_ready if using_hybrid else None,
             "backup_configured": backup_ready if using_hybrid else None,
