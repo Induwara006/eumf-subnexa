@@ -38,8 +38,8 @@ export default function SubNexaAccountDock() {
       <SheetContent side="right" className="w-full gap-0 border-white/10 bg-[#141414] p-0 sm:max-w-md">
         <SheetHeader className="border-b border-white/10 px-5 py-4 pr-12">
           <div className="flex items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-[4px] border border-primary/40 bg-primary/15 text-sm font-semibold text-primary">
-              G
+            <span className="grid size-9 shrink-0 place-items-center rounded-[4px] border border-primary/40 bg-primary/15 text-primary">
+              <UserRound className="size-4" />
             </span>
             <div>
               <SheetTitle className="text-sm">Google account</SheetTitle>
