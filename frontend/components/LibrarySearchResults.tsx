@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Download, Film, Loader2 } from "lucide-react";
 
 type Item = {
-  id: number;
+  id: string | number;
   title: string;
   year: string;
   language: string;
@@ -48,7 +48,10 @@ function Thumb({ item, api }: { item: Item; api: string }) {
  * (poster, name, year, Download). Render it as a child of the search box wrapper,
  * which must be `position: relative`.
  */
-export default function LibrarySearchResults({ query, api, onBrowse }: Props) {
+export default function LibrarySearchResults({ query, api: translationApi, onBrowse }: Props) {
+  // Keep the existing caller prop compatible; library requests use Vercel.
+  void translationApi;
+  const api = "/api";
   const q = query.trim();
   const markerRef = useRef<HTMLSpanElement>(null);
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);

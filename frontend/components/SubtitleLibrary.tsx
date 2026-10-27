@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type LibraryItem = {
-  id: number;
+  id: string | number;
   title: string;
   year: string;
   language: string;
@@ -43,7 +43,10 @@ function Poster({ item, api }: { item: LibraryItem; api: string }) {
 }
 
 /** Search bar + poster grid + owner tools. Used by the popup and by the /library page. */
-export function LibraryBrowser({ api, autoFocus = false }: { api: string; autoFocus?: boolean }) {
+export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api: string; autoFocus?: boolean }) {
+  // Keep the existing caller prop compatible; library requests use Vercel.
+  void translationApi;
+  const api = "/api";
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(false);
