@@ -1147,8 +1147,7 @@ export default function Home() {
       <section className="relative z-20 mx-auto w-full max-w-[1480px] px-4 pb-24 pt-6 sm:px-8">
         <div className="overflow-hidden rounded-[6px] border border-white/10 bg-[#181818] p-7 sm:flex sm:items-center sm:justify-between sm:gap-8 sm:p-10">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">Private studio</p>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Sign in to open your studio.</h2>
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Sign in to open your studio.</h2>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/55">
               Upload, translate and review Sinhala subtitles in one private workspace. The studio only appears after you sign in.
             </p>
