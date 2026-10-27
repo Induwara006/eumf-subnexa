@@ -1024,7 +1024,7 @@ export default function Home() {
       <section id="top" className="netflix-hero relative isolate flex min-h-[88vh] items-end overflow-hidden">
         <div className="relative z-10 mx-auto w-full max-w-[1480px] px-4 pb-24 pt-32 sm:px-8 sm:pb-32">
           <div className="max-w-3xl">
-            <h1 className="font-bebas text-[3.7rem] font-normal leading-[0.88] tracking-[0.01em] text-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.6)] sm:text-8xl lg:text-[6.4rem]">
+            <h1 className="font-geist text-[3.2rem] font-black leading-[0.92] tracking-[-0.04em] text-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.6)] sm:text-7xl lg:text-[5.8rem]">
               Every story.<br />
               <span className="text-white/85">In Sinhala.</span>
             </h1>
