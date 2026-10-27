@@ -49,6 +49,7 @@ export default function SubNexaProviderStatus({ apiBase }: Props) {
   }, [apiBase]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
     const onFocus = () => { void refresh(); };
     window.addEventListener("focus", onFocus);
@@ -81,7 +82,7 @@ export default function SubNexaProviderStatus({ apiBase }: Props) {
       aria-label="AI provider connection status"
       aria-live="polite"
       className={cn(
-        "flex flex-col gap-3 border-border/70 bg-card/70 py-3 pr-3 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-3 border-white/10 bg-[#181818] py-3 pr-3 sm:flex-row sm:items-center sm:justify-between",
         kind === "connected" && "border-success/30",
         (kind === "offline" || kind === "disconnected") && "border-warning/30",
       )}
@@ -98,7 +99,7 @@ export default function SubNexaProviderStatus({ apiBase }: Props) {
           <AlertTitle className="flex flex-wrap items-center gap-2 text-xs font-medium">
             {heading}
             {!checking && connection?.signed_in && (
-              <Badge variant="outline" className="h-4 border-border/80 px-1.5 text-[9px] font-normal text-muted-foreground">
+              <Badge variant="outline" className="h-4 border-white/20 px-1.5 text-[9px] font-normal text-muted-foreground">
                 {providerLabel}
               </Badge>
             )}

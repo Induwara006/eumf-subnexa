@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   CircleHelp,
   Copy,
   Download,
@@ -16,6 +17,8 @@ import {
   FileSpreadsheet,
   FileText,
   Film,
+  Info,
+  Languages,
   Loader2,
   Lock,
   Pencil,
@@ -170,21 +173,25 @@ function StepLink({ href, index, label, state }: {
     <a
       href={href}
       className={cn(
-        "group flex flex-1 items-center justify-center gap-2 border-b-2 px-2 py-3 text-xs font-medium transition-colors sm:text-sm",
-        state === "current" && "border-primary text-foreground",
-        state === "done" && "border-success/50 text-muted-foreground hover:text-foreground",
-        state === "todo" && "border-transparent text-muted-foreground/70 hover:text-foreground",
+        "group relative flex flex-1 items-center justify-center gap-2 px-2 py-3.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors sm:text-xs",
+        state === "current" && "text-white",
+        state === "done" && "text-white/60 hover:text-white",
+        state === "todo" && "text-white/40 hover:text-white/70",
       )}
     >
       <span className={cn(
-        "grid size-6 shrink-0 place-items-center rounded-full border text-[11px]",
-        state === "current" && "border-primary bg-primary text-primary-foreground",
+        "grid size-6 shrink-0 place-items-center rounded-[3px] border text-[10px] font-bold",
+        state === "current" && "border-primary bg-primary text-white",
         state === "done" && "border-success/40 bg-success/15 text-success",
-        state === "todo" && "border-border text-muted-foreground",
+        state === "todo" && "border-white/20 text-white/50",
       )}>
         {state === "done" ? <Check className="size-3.5" /> : index}
       </span>
       <span className="hidden sm:inline">{label}</span>
+      <span className={cn(
+        "absolute inset-x-0 bottom-0 h-0.5 bg-primary transition-opacity",
+        state === "current" ? "opacity-100" : "opacity-0",
+      )} />
     </a>
   );
 }
@@ -204,6 +211,7 @@ export default function Home() {
   const [cinemaOpen, setCinemaOpen] = useState(false);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [backgroundDim, setBackgroundDim] = useState(78);
+  const [scrolled, setScrolled] = useState(false);
   const [readyCardVisible, setReadyCardVisible] = useState(true);
   const [help, setHelp] = useState(false);
   const [glossarySearch, setGlossarySearch] = useState("");
@@ -278,6 +286,7 @@ export default function Home() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("subnexa-glossary-v1");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (saved) setGlossaryRules(validateGlossaryRules(JSON.parse(saved)));
     } catch { /* Invalid saved glossary is ignored, never submitted to backend. */ }
     setGlossaryReady(true);
@@ -290,6 +299,7 @@ export default function Home() {
   useEffect(() => {
     try {
       const stored = Number(localStorage.getItem("subnexa-background-dim"));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (stored >= 50 && stored <= 95) setBackgroundDim(stored);
     } catch { /* local preferences are optional */ }
   }, []);
@@ -297,6 +307,13 @@ export default function Home() {
   useEffect(() => {
     try { localStorage.setItem("subnexa-background-dim", String(backgroundDim)); } catch { /* private mode */ }
   }, [backgroundDim]);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     const card = readyCardRef.current;
@@ -307,12 +324,13 @@ export default function Home() {
     const observer = new IntersectionObserver(([entry]) => setReadyCardVisible(entry.isIntersecting), { threshold: 0.15 });
     observer.observe(card);
     return () => observer.disconnect();
-  }, [hasReadyDownload]);
+  }, [hasReadyDownload, readyDownload]);
 
   useEffect(() => {
     if (jumpTarget === null) return;
     const item = previewViewport.current?.querySelector(`[data-cue-index="${jumpTarget}"]`);
     item?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setJumpTarget(null);
   }, [jumpTarget, cueSearch, tab]);
 
@@ -896,8 +914,8 @@ export default function Home() {
   function renderCues() {
     if (!cues.length || !visibleIndices.length) {
       return (
-        <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-background/30 p-6 text-center">
-          <span className="grid size-12 place-items-center rounded-full border border-border/70 bg-card text-muted-foreground">
+        <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-[4px] border border-dashed border-border/60 bg-black/25 p-6 text-center">
+          <span className="grid size-12 place-items-center rounded-full border border-white/10 bg-card text-muted-foreground">
             <FileText className="size-5" />
           </span>
           <h3 className="mt-3 text-sm font-medium">
@@ -919,7 +937,7 @@ export default function Home() {
           const canEdit = tab !== "source" && !!readyDownload && !isCredit && !translating;
           const isEditing = editingCue === i;
           return (
-            <div key={`${tab}-${i}`} data-cue-index={i} className={cn("py-3 first:pt-1 last:pb-1", isEditing && "rounded-lg bg-primary/5 px-3")}>
+            <div key={`${tab}-${i}`} data-cue-index={i} className={cn("py-3 first:pt-1 last:pb-1", isEditing && "rounded-[4px] bg-primary/5 px-3")}>
               <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] tabular-nums text-muted-foreground">
                 <span className="text-foreground/70">#{cue.number}</span>
                 <time>{cue.time}</time>
@@ -930,13 +948,13 @@ export default function Home() {
               </div>
               {tab === "compare" ? (
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-lg border border-border/60 bg-background/40 p-2.5">
+                  <div className="rounded-[4px] border border-border/60 bg-black/30 p-2.5">
                     <span className="text-[9px] font-medium tracking-[0.14em] text-muted-foreground">ENGLISH</span>
                     <p lang="en" className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed">
                       {english?.text || (isCredit ? "Opening SubNexa AI credit" : "Original line unavailable")}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5">
+                  <div className="rounded-[4px] border border-primary/20 bg-primary/5 p-2.5">
                     <span className="text-[9px] font-medium tracking-[0.14em] text-primary/80">සිංහල</span>
                     <p lang="si" className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{cue.text}</p>
                   </div>
@@ -947,7 +965,7 @@ export default function Home() {
                 </p>
               )}
               {isEditing && (
-                <div className="mt-2 space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+                <div className="mt-2 space-y-2 rounded-[4px] border border-primary/40 bg-primary/5 p-3">
                   <Label htmlFor={`sn-edit-${i}`} className="text-[11px]">Edit Sinhala subtitle #{cue.number}</Label>
                   <Textarea id={`sn-edit-${i}`} lang="si" rows={3} maxLength={600} value={editDraft} onChange={e => setEditDraft(e.target.value)} className="min-h-20 text-sm" />
                   {editError && <p role="alert" className="text-[11px] text-destructive">{editError}</p>}
@@ -976,76 +994,150 @@ export default function Home() {
   }
 
   return (
-    <div className="relative isolate flex min-h-screen flex-col" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
-      <div className="studio-backdrop" aria-hidden="true" />
-
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
-              <Film className="size-4" />
-            </span>
-            <div className="min-w-0 leading-tight">
-              <div className="flex items-baseline gap-2">
-                <span className="truncate text-base font-semibold tracking-tight">SubNexa</span>
-                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">by EUMF</span>
-              </div>
-              <span className="hidden truncate text-xs text-muted-foreground sm:block">English → Sinhala subtitle studio</span>
+    <div className="relative isolate flex min-h-screen flex-col bg-[#141414]" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
+      <header className={cn(
+        "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
+        scrolled ? "netflix-topbar-scrolled" : "netflix-topbar",
+      )}>
+        <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-4 px-4 sm:h-[68px] sm:px-8">
+          <a href="#top" className="netflix-logo text-2xl sm:text-3xl" aria-label="SubNexa home">SubNexa</a>
+          <nav className="hidden items-center gap-5 text-[13px] md:flex" aria-label="Main">
+            <a href="#top" className="font-medium text-white transition-colors">Home</a>
+            <a href="#sn-workspace" className="text-white/70 transition-colors hover:text-white">Studio</a>
+            <a href="#sn-features" className="text-white/70 transition-colors hover:text-white">How it works</a>
+            <a href="#sn-glossary" className="text-white/70 transition-colors hover:text-white">Glossary</a>
+          </nav>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="hidden items-center gap-2 rounded-[3px] border border-white/15 bg-black/30 px-3 py-1.5 text-[11px] sm:flex">
+              <Languages className="size-3.5 text-primary" />
+              <span className="text-white/70">English</span>
+              <ChevronRight className="size-3 text-white/40" />
+              <span lang="si" className="text-white">සිංහල</span>
             </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="hidden h-7 gap-1.5 border-border/80 px-2.5 text-[11px] font-normal text-muted-foreground md:inline-flex">
-              <span className="size-1.5 rounded-full bg-success" />Subtitle studio
-            </Badge>
-            <Button variant="ghost" size="sm" className="h-9 gap-2 px-3 text-muted-foreground hover:text-foreground" onClick={() => setHelp(true)}>
-              <CircleHelp className="size-4" /><span className="hidden sm:inline">Quick guide</span>
+            <Button variant="ghost" size="sm" className="h-9 gap-2 px-3 text-white/80 hover:text-white" onClick={() => setHelp(true)}>
+              <CircleHelp className="size-4" /><span className="hidden sm:inline">Guide</span>
             </Button>
             <SubNexaAccountDock />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
+      <section id="top" className="netflix-hero relative isolate flex min-h-[88vh] items-end overflow-hidden">
+        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-24 pt-32 sm:px-8 sm:pb-32">
+          <div className="max-w-3xl">
+            <div className="mb-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.32em] text-white/75 sm:text-[11px]">
+              <span className="text-primary">S</span>
+              A SubNexa Original
+              <span className="h-px w-10 bg-primary/70" />
+              Subtitle studio
+            </div>
+            <h1 className="text-[3.2rem] font-black leading-[0.9] tracking-[-0.045em] text-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.6)] sm:text-7xl lg:text-[5.6rem]">
+              Every story.<br />
+              <span className="text-white/85">In Sinhala.</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/80 sm:text-base">
+              Drop in an English SRT and let SubNexa AI bring it home in natural Sinhala.
+              Dialogue is rewritten, every timestamp stays exactly where it belongs.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-medium text-white/75 sm:text-xs">
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-success" />Timing protected</span>
+              <span className="flex items-center gap-1.5"><Sparkles className="size-3.5 text-primary" />Natural or formal voice</span>
+              <span className="flex items-center gap-1.5"><Lock className="size-3.5 text-white/60" />Glossary-aware</span>
+            </div>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <Button asChild size="lg" className="h-12 gap-2 px-7 text-base font-bold">
+                <a href="#sn-setup"><Play className="size-5 fill-current" />Start translating</a>
+              </Button>
+              <Button size="lg" variant="secondary" className="h-12 gap-2 bg-white/15 px-6 text-base text-white hover:bg-white/25" onClick={() => setHelp(true)}>
+                <Info className="size-5" />How it works
+              </Button>
+            </div>
+            <div className="mt-8 flex flex-wrap items-center gap-2 text-[11px] text-white/60">
+              <Badge className="h-5 gap-1 bg-primary px-2 text-[9px] font-bold uppercase tracking-[0.16em]">New</Badge>
+              <span>SubNexa Pro &amp; 0.2 model routing</span>
+              <span className="text-white/25">|</span>
+              <span>SRT &amp; ASS export</span>
+              <span className="text-white/25">|</span>
+              <span>Built for Sinhala</span>
+            </div>
+          </div>
+        </div>
+        <a href="#sn-features" className="absolute bottom-6 right-4 z-10 hidden items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-white/50 transition-colors hover:text-white sm:right-8 sm:flex">
+          Explore <ChevronDown className="size-4" />
+        </a>
+      </section>
+
+      <section id="sn-features" className="relative z-20 mx-auto -mt-14 w-full max-w-[1400px] scroll-mt-24 px-4 sm:px-8">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-lg font-bold tracking-tight sm:text-xl">How SubNexa works</h2>
+          <span className="text-[11px] text-muted-foreground">4 steps · zero timing changes</span>
+        </div>
+        <div className="netflix-row grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { icon: Upload, step: "01", title: "Upload your SRT", detail: "Drop an English subtitle file up to 2 MB and preview every cue." },
+            { icon: Sparkles, step: "02", title: "Choose the voice", detail: "Natural, casual or formal Sinhala, with SRT or ASS output." },
+            { icon: Lock, step: "03", title: "Protect the names", detail: "Glossary rules keep characters, places and terms intact." },
+            { icon: Download, step: "04", title: "Review & download", detail: "Compare, search and edit, then save your finished subtitles." },
+          ].map(item => (
+            <div key={item.step} className="netflix-tile group relative overflow-hidden rounded-[6px] border border-white/10 bg-[#181818] p-4">
+              <div className="flex items-center justify-between">
+                <span className="grid size-9 place-items-center rounded-[4px] bg-primary/15 text-primary ring-1 ring-primary/30">
+                  <item.icon className="size-4" />
+                </span>
+                <span className="font-mono text-[10px] tracking-[0.2em] text-white/30">{item.step}</span>
+              </div>
+              <h3 className="mt-3 text-sm font-semibold text-white">{item.title}</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{item.detail}</p>
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-primary transition-transform duration-300 group-hover:scale-x-100" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <main id="sn-workspace" className="mx-auto w-full max-w-[1400px] flex-1 scroll-mt-20 px-4 pb-24 pt-12 sm:px-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-[2.1rem]">Translation workspace</h1>
-              <Badge className="h-5 rounded-md bg-primary/15 px-2 text-[10px] font-semibold tracking-[0.14em] text-primary ring-1 ring-primary/30">{modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
+              <span className="h-6 w-1 rounded-full bg-primary" />
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Your studio</h2>
+              <Badge variant="outline" className="h-5 border-white/20 px-2 text-[9px] font-semibold tracking-[0.16em] text-white/70">S1:E1</Badge>
+              <Badge className="h-5 bg-primary px-2 text-[9px] font-bold tracking-[0.14em]">{modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
             </div>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Bring the story into Sinhala. Every timestamp stays exactly where it belongs.
+              Upload, translate and review your next episode. Nothing downloads until you say so.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className="size-9 rounded-full border-border/80 bg-card/60" aria-label="Poster background settings">
+                <Button variant="outline" size="icon" className="size-9 rounded-[4px]" aria-label="Billboard brightness settings">
                   <Settings2 className="size-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 space-y-4 border-border/80 bg-popover/95 backdrop-blur">
+              <PopoverContent align="end" className="w-64 space-y-4">
                 <div className="flex items-center justify-between text-xs">
-                  <Label className="text-xs text-muted-foreground">Poster background</Label>
+                  <Label className="text-xs text-muted-foreground">Billboard darkness</Label>
                   <span className="font-mono text-foreground">{backgroundDim}%</span>
                 </div>
-                <Slider value={[backgroundDim]} min={50} max={95} step={5} onValueChange={([value]) => setBackgroundDim(value)} aria-label="Poster background darkness" />
-                <p className="text-[11px] leading-relaxed text-muted-foreground">Adjust how strongly the poster wall shows behind the studio.</p>
+                <Slider value={[backgroundDim]} min={50} max={95} step={5} onValueChange={([value]) => setBackgroundDim(value)} aria-label="Billboard darkness" />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">Adjust how strongly the billboard artwork shows behind the stage.</p>
               </PopoverContent>
             </Popover>
-            <div className="flex items-center gap-2 rounded-full border border-border/80 bg-card/60 px-3.5 py-1.5 text-xs">
+            <div className="flex items-center gap-2 rounded-[4px] border border-white/15 bg-white/5 px-3.5 py-2 text-xs">
+              <Languages className="size-3.5 text-primary" />
               <span className="text-muted-foreground">English</span>
-              <ArrowRight className="size-3.5 text-primary" />
+              <ChevronRight className="size-3.5 text-white/40" />
               <span lang="si" className="text-sm text-foreground">සිංහල</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-5">
           <SubNexaProviderStatus apiBase={API} />
         </div>
 
         <Dialog open={help} onOpenChange={setHelp}>
-          <DialogContent className="border-border/80 bg-card sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">
                 <CircleHelp className="size-4 text-primary" />Your subtitle workflow
@@ -1066,7 +1158,7 @@ export default function Home() {
                 </li>
               ))}
             </ol>
-            <Alert className="border-border/70 bg-background/60">
+            <Alert className="border-white/10 bg-background/60">
               <AlertCircle className="size-4 text-warning" />
               <AlertDescription className="text-xs">
                 To resume after an interruption, translate the same file with the same settings and glossary.
@@ -1075,7 +1167,7 @@ export default function Home() {
           </DialogContent>
         </Dialog>
 
-        <nav className="sticky top-16 z-30 mt-6 flex overflow-hidden rounded-xl border border-border/70 bg-background/80 backdrop-blur-xl" aria-label="Progress">
+        <nav className="sticky top-16 z-30 mt-6 flex overflow-hidden rounded-[6px] border border-white/10 bg-[#181818]" aria-label="Progress">
           <StepLink href="#sn-setup" index={1} label="Upload" state={file ? "done" : "current"} />
           <StepLink href="#sn-style" index={2} label="Style & glossary" state={!file ? "todo" : translating || readyDownload ? "done" : "current"} />
           <StepLink href="#sn-studio" index={3} label="Translate & review" state={readyDownload ? "done" : translating ? "current" : "todo"} />
@@ -1083,7 +1175,7 @@ export default function Home() {
 
         <div className="mt-5 grid items-start gap-5 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
           <div className="min-w-0 space-y-5">
-            <Card id="sn-setup" className="scroll-mt-36 border-border/70 bg-card/85 backdrop-blur-sm">
+            <Card id="sn-setup" className="scroll-mt-36 border-white/10 bg-[#181818]">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1102,7 +1194,7 @@ export default function Home() {
                   onDragLeave={() => setDragging(false)}
                   onDrop={e => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files?.[0] || null); }}
                   className={cn(
-                    "group flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/40 px-4 py-7 text-center transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60",
+                    "group flex w-full flex-col items-center justify-center gap-2 rounded-[6px] border border-dashed border-border bg-black/30 px-4 py-7 text-center transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60",
                     dragging && "border-primary bg-primary/10",
                   )}
                 >
@@ -1131,7 +1223,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card id="sn-style" className="scroll-mt-36 border-border/70 bg-card/85 backdrop-blur-sm">
+            <Card id="sn-style" className="scroll-mt-36 border-white/10 bg-[#181818]">
               <CardHeader>
                 <CardTitle className="text-sm">Translation settings</CardTitle>
                 <CardDescription className="mt-1 text-xs">Choose how the Sinhala dialogue should read.</CardDescription>
@@ -1151,7 +1243,7 @@ export default function Home() {
                       const unavailable = modelAvailability?.[option.id] === false;
                       return (
                         <Label key={option.id} htmlFor={`ai-model-${option.id}`}
-                          className={cn("flex min-h-32 cursor-pointer flex-col gap-2 rounded-lg border border-border/70 bg-background/40 p-3 transition-colors hover:border-primary/40",
+                          className={cn("flex min-h-32 cursor-pointer flex-col gap-2 rounded-[4px] border border-white/10 bg-black/30 p-3 transition-colors hover:border-primary/40",
                             active && "border-primary/60 bg-primary/10",
                             unavailable && "cursor-not-allowed opacity-55")}>
                           <div className="flex items-start justify-between gap-2">
@@ -1186,7 +1278,7 @@ export default function Home() {
                         key={option.value}
                         htmlFor={`style-${option.value}`}
                         className={cn(
-                          "flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 bg-background/40 p-3 transition-colors hover:border-border",
+                          "flex cursor-pointer items-start gap-3 rounded-[4px] border border-white/10 bg-black/30 p-3 transition-colors hover:border-border",
                           style === option.value && "border-primary/60 bg-primary/10",
                         )}
                       >
@@ -1215,7 +1307,7 @@ export default function Home() {
                         key={format}
                         htmlFor={`format-${format}`}
                         className={cn(
-                          "flex cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background/40 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:border-border has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                          "flex cursor-pointer items-center justify-center rounded-[4px] border border-white/10 bg-black/30 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:border-border has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
                           exportFormat === format && "border-primary/60 bg-primary/10 text-foreground",
                         )}
                       >
@@ -1227,7 +1319,7 @@ export default function Home() {
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     ASS can display red/white opening credits on compatible players. SRT uses plain text.
                   </p>
-                  <div className="flex items-start gap-3 rounded-lg border border-border/70 bg-background/40 p-3">
+                  <div className="flex items-start gap-3 rounded-[4px] border border-white/10 bg-black/30 p-3">
                     <Checkbox
                       id="opening-credit"
                       checked={openingCredit}
@@ -1248,7 +1340,7 @@ export default function Home() {
                   <Button
                     id="sn-translate-action"
                     size="lg"
-                    className="h-11 w-full justify-between rounded-lg text-sm font-semibold shadow-lg shadow-primary/20"
+                    className="h-11 w-full justify-between rounded-[4px] text-sm font-semibold shadow-lg shadow-primary/20"
                     onClick={() => interruption === "stopped" ? requestResumeTranslation() : void handleTranslate()}
                     disabled={loading || !file || resumeRequested}
                   >
@@ -1278,7 +1370,7 @@ export default function Home() {
           </div>
 
           <div className="min-w-0 space-y-5">
-            <Card className="border-border/70 bg-card/85 backdrop-blur-sm">
+            <Card className="border-white/10 bg-[#181818]">
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
@@ -1366,7 +1458,7 @@ export default function Home() {
                         </div>
                       </div>
                     )) : (
-                      <p className="rounded-lg border border-dashed border-border/60 bg-background/30 p-3 text-xs text-muted-foreground">
+                      <p className="rounded-[4px] border border-dashed border-border/60 bg-black/25 p-3 text-xs text-muted-foreground">
                         Translation and review stages appear here as they happen.
                       </p>
                     )}
@@ -1376,7 +1468,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card id="sn-studio" className="scroll-mt-36 border-border/70 bg-card/85 backdrop-blur-sm">
+            <Card id="sn-studio" className="scroll-mt-36 border-white/10 bg-[#181818]">
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -1450,7 +1542,7 @@ export default function Home() {
                     <TabsContent key={mode} value={mode} className="mt-2">
                       <div
                         ref={mode === tab ? previewViewport : null}
-                        className={cn("cue-scroll h-[360px] overflow-y-auto rounded-lg border border-border/60 bg-background/30 p-3", mode === "compare" && "h-[420px]")}
+                        className={cn("cue-scroll h-[360px] overflow-y-auto rounded-[4px] border border-border/60 bg-black/25 p-3", mode === "compare" && "h-[420px]")}
                       >
                         {renderCues()}
                       </div>
@@ -1474,7 +1566,7 @@ export default function Home() {
                   </div>
                 )}
 
-                <Collapsible open={cinemaOpen} onOpenChange={setCinemaOpen} className="rounded-lg border border-border/60 bg-background/30">
+                <Collapsible open={cinemaOpen} onOpenChange={setCinemaOpen} className="rounded-[4px] border border-border/60 bg-black/25">
                   <CollapsibleTrigger asChild>
                     <button type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
                       <span className="flex items-center gap-2 text-xs font-medium"><Film className="size-3.5 text-primary" />Cinematic subtitle preview</span>
@@ -1486,7 +1578,7 @@ export default function Home() {
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="space-y-2 px-3 pb-3">
-                      <div className="cinema-screen flex aspect-video min-h-[170px] flex-col items-center justify-end rounded-lg px-6 pb-5 text-center">
+                      <div className="cinema-screen flex aspect-video min-h-[170px] flex-col items-center justify-end rounded-[4px] px-6 pb-5 text-center">
                         {sceneIsCredit && readyDownload?.format === "ass"
                           ? <div className="flex flex-wrap items-center justify-center gap-2 text-base font-semibold text-white sm:text-xl"><span>Sinhala Sub</span><strong className="text-primary">Generated by SubNexa AI</strong></div>
                           : <p lang={tab === "source" ? "en" : "si"} className="max-w-xl whitespace-pre-wrap text-sm font-semibold leading-relaxed text-white sm:text-lg">{sceneCue?.text || "Choose a subtitle line using Cinema preview."}</p>}
@@ -1528,12 +1620,12 @@ export default function Home() {
           </div>
         </div>
 
-        <Card className="mt-5 border-border/70 bg-card/85 backdrop-blur-sm">
+        <Card id="sn-glossary" className="mt-5 scroll-mt-24 border-white/10 bg-[#181818]">
           <Collapsible open={glossaryOpen} onOpenChange={setGlossaryOpen}>
             <CollapsibleTrigger asChild>
               <button type="button" className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border/70 bg-background/50 text-primary">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[4px] border border-white/10 bg-black/30 text-primary">
                     <Lock className="size-4" />
                   </span>
                   <div>
@@ -1666,7 +1758,7 @@ export default function Home() {
                 </div>
 
                 {glossaryNotice && (
-                  <p role="status" className="rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-[11px] text-success">{glossaryNotice}</p>
+                  <p role="status" className="rounded-[4px] border border-success/25 bg-success/10 px-3 py-2 text-[11px] text-success">{glossaryNotice}</p>
                 )}
 
                 <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1686,12 +1778,12 @@ export default function Home() {
 
                 <div className="cue-scroll max-h-64 space-y-1.5 overflow-y-auto pr-1">
                   {visibleGlossary.length ? visibleGlossary.map(({ rule: r, index: i }) => (
-                    <div key={`${r.source}:${i}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2">
+                    <div key={`${r.source}:${i}`} className="flex items-center justify-between gap-3 rounded-[4px] border border-border/50 bg-black/30 px-3 py-2">
                       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                         <strong className="font-medium">{r.source}</strong>
                         <ArrowRight className="size-3 text-muted-foreground" />
                         <span lang="si" className="text-muted-foreground">{r.mode === "never_translate" ? "Keep original" : r.target}</span>
-                        {r.case_sensitive && <Badge variant="outline" className="h-4 border-border/70 px-1.5 text-[9px] font-normal text-muted-foreground">Case sensitive</Badge>}
+                        {r.case_sensitive && <Badge variant="outline" className="h-4 border-white/10 px-1.5 text-[9px] font-normal text-muted-foreground">Case sensitive</Badge>}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         <Button variant="ghost" size="xs" className="h-6 px-2 text-[10px]" disabled={loading} onClick={() => { setEditingRule(i); setGlossaryDraft({ ...r }); }}>Edit</Button>
@@ -1708,7 +1800,7 @@ export default function Home() {
                       </div>
                     </div>
                   )) : (
-                    <p className="rounded-lg border border-dashed border-border/60 bg-background/30 p-3 text-xs text-muted-foreground">
+                    <p className="rounded-[4px] border border-dashed border-border/60 bg-black/25 p-3 text-xs text-muted-foreground">
                       {glossaryRules.length ? "No matching terms." : "No glossary rules yet. Add a term or select a preset."}
                     </p>
                   )}
@@ -1755,7 +1847,7 @@ export default function Home() {
                     </Button>
                   </div>
                   {playgroundResult && (
-                    <div className="space-y-2 rounded-lg border border-border/60 bg-background/40 p-3">
+                    <div className="space-y-2 rounded-[4px] border border-border/60 bg-black/30 p-3">
                       <p className="text-[11px] text-muted-foreground">Masked before Gemini</p>
                       <code className="block break-words font-mono text-[11px] text-foreground/90">{playgroundResult.masked}</code>
                       <p className="text-[11px] text-muted-foreground">Restored demonstration (not AI translated)</p>
@@ -1771,14 +1863,29 @@ export default function Home() {
           </Collapsible>
         </Card>
 
-        <footer className="mt-10 flex flex-col gap-2 border-t border-border/60 pt-5 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>SubNexa <span className="mx-2 text-border">/</span> Made for the story.</span>
-          <span>Developed by E Unity Movie Family LK</span>
+        <footer className="mt-12 border-t border-white/10 pt-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <span className="netflix-logo text-lg">SubNexa</span>
+              <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-white/45">
+                Every story, in Sinhala. Timestamps protected, dialogue reviewed by you.
+                Developed by E Unity Movie Family LK.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-white/55">
+              <a href="#sn-workspace" className="transition-colors hover:text-white">Studio</a>
+              <a href="#sn-features" className="transition-colors hover:text-white">How it works</a>
+              <a href="#sn-glossary" className="transition-colors hover:text-white">Glossary</a>
+              <button type="button" onClick={() => setHelp(true)} className="transition-colors hover:text-white">Guide</button>
+              <a href="#top" className="transition-colors hover:text-white">Back to top</a>
+            </div>
+          </div>
+          <p className="mt-6 text-[10px] uppercase tracking-[0.2em] text-white/25">SubNexa Original · Made for the story</p>
         </footer>
       </main>
 
       {readyDownload && !readyCardVisible && !translating && !isError && (
-        <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-xl border border-success/30 bg-card/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:left-auto sm:right-5 sm:w-[min(460px,calc(100vw-2.5rem))]">
+        <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-[6px] border border-success/30 bg-[#181818] p-3 shadow-2xl sm:bottom-5 sm:left-auto sm:right-5 sm:w-[min(460px,calc(100vw-2.5rem))]">
           <div className="flex min-w-0 items-center gap-2.5">
             <CheckCircle2 className="size-4 shrink-0 text-success" />
             <div className="min-w-0">
@@ -1932,13 +2039,4 @@ function replaceStudioCue(content: string, format: StudioFormat, cueIndex: numbe
   return output.join(newline);
 }
 
-function studioSearch(text: string, cues: StudioCue[], sources: StudioCue[], format: StudioFormat): number[] {
-  const q = text.trim().toLocaleLowerCase();
-  return cues.flatMap((cue, index) => {
-    if (!q) return [index];
-    const source = format === "srt" || format === "ass" ? findSourceMatch(cue, sources) : undefined;
-    const combined = `${cue.number} ${cue.time} ${cue.text} ${source?.text ?? ""}`.toLocaleLowerCase();
-    return combined.includes(q) ? [index] : [];
-  });
-}
 

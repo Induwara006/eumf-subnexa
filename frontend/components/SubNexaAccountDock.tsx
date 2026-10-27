@@ -27,7 +27,7 @@ export default function SubNexaAccountDock() {
         <Button
           variant="outline"
           size="sm"
-          className="h-9 gap-2 border-border/80 bg-card/60 px-3 text-xs"
+          className="h-9 gap-2 border-white/20 bg-white/5 px-3 text-xs hover:bg-white/10"
           aria-label="Open Google account panel"
           title="Google account"
         >
@@ -35,10 +35,10 @@ export default function SubNexaAccountDock() {
           <span className="hidden sm:inline">Account</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-full gap-0 border-border/70 bg-card p-0 sm:max-w-md">
-        <SheetHeader className="border-b border-border/60 px-5 py-4 pr-12">
+      <SheetContent side="right" className="w-full gap-0 border-white/10 bg-[#141414] p-0 sm:max-w-md">
+        <SheetHeader className="border-b border-white/10 px-5 py-4 pr-12">
           <div className="flex items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-sm font-semibold text-primary">
+            <span className="grid size-9 shrink-0 place-items-center rounded-[4px] border border-primary/40 bg-primary/15 text-sm font-semibold text-primary">
               G
             </span>
             <div>
