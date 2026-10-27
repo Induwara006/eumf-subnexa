@@ -25,17 +25,22 @@ def selected_mode():
 def set_mode(value: str):
     if value not in VALID_MODES:
         raise ValueError('Unknown SubNexa AI model choice')
-    return _selected.set(value)
+    from subnexa_account_pool import start_pools
+    return (_selected.set(value), start_pools())
 
 
 def reset_mode(token):
-    _selected.reset(token)
+    from subnexa_account_pool import reset_pools
+    mode_token, pool_token = token
+    reset_pools(pool_token)
+    _selected.reset(mode_token)
 
 
 def gemini_site_configured() -> bool:
     # In production the Cloudflare-only authentication branch does not attach
     # personal Google API keys. Require a legitimately configured site key for Pro.
-    return bool(os.getenv('GEMINI_API_KEY', '').strip())
+    from subnexa_account_pool import configured
+    return configured('gemini')
 
 
 def availability():
@@ -43,17 +48,10 @@ def availability():
 
 
 def routed_client(personal_key=None):
+    from subnexa_account_pool import pooled_client
     mode = selected_mode()
     if mode == MODE_NORMAL:
-        if not cf_configured():
-            raise RuntimeError('SubNexa 0.2 is unavailable: Cloudflare AI is not configured')
-        return CloudflareClient()
+        return pooled_client('cloudflare')
     if mode == MODE_PRO:
-        # This is a server-managed Pro feature; do not use tokens from the
-        # browser. Provider access and quota are checked by actual API calls.
-        key = os.getenv('GEMINI_API_KEY', '').strip()
-        if not key:
-            raise RuntimeError('SubNexa Pro is unavailable: Gemini has not been configured')
-        from google import genai
-        return genai.Client(api_key=key)
+        return pooled_client('gemini')
     raise RuntimeError('No model selected for routed client')

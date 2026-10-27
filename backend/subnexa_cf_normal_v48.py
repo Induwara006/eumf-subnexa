@@ -1,9 +1,5 @@
-"""Split SubNexa 0.2 subtitles into two planned batches."""
+"""SubNexa 0.2: plan batches of up to 15 subtitle entries."""
 
 
 def select_cloudflare_batch(remaining, originals):
-    if not remaining:
-        return []
-
-    batch_size = max(1, (len(originals) + 1) // 2)
-    return remaining[:batch_size]
+    return remaining[:15]

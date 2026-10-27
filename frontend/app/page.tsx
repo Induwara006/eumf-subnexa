@@ -248,6 +248,8 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [translatedCount, setTranslatedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const etaSample = useRef<{ started: number; baseline: number; last: number; updates: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [glossaryRules, setGlossaryRules] = useState<GlossaryRule[]>([]);
@@ -563,6 +565,8 @@ export default function Home() {
     setPreviewNotice("");
     setTab("source");
     setLoading(true);
+    etaSample.current = null;
+    setEtaSeconds(null);
     setTranslating(true);
     setProgress(0);
     setResuming(false);
@@ -683,6 +687,27 @@ export default function Home() {
         }
 
         if (data.type === "progress") {
+          // The first progress event includes cached/unchanged lines: do not
+          // count them as newly translated work, especially after resuming.
+          const now = performance.now();
+          const count = Number(data.completed);
+          const total = Number(data.total);
+          if (Number.isFinite(count) && Number.isFinite(total) && count >= 0 && total >= count) {
+            let sample = etaSample.current;
+            if (!sample || count < sample.last) {
+              sample = { started: now, baseline: count, last: count, updates: 0 };
+              etaSample.current = sample;
+              setEtaSeconds(null);
+            } else if (count > sample.last) {
+              sample.last = count;
+              sample.updates += 1;
+              const elapsed = (now - sample.started) / 1000;
+              const processed = count - sample.baseline;
+              if (sample.updates >= 2 && elapsed > 0 && processed > 0) {
+                setEtaSeconds(Math.max(0, elapsed / processed * (total - count)));
+              }
+            }
+          }
           setTranslatedCount(data.completed);
           setTotalCount(data.total);
           setProgress(
@@ -1274,6 +1299,19 @@ export default function Home() {
                   <span className="font-mono text-2xl leading-none text-foreground">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-1.5" aria-label="Translation progress" />
+                {translating && !interruption && !isError && (
+                  <p className="mt-2 text-xs text-muted-foreground" role="status">
+                    {controlPending
+                      ? "Processing your request…"
+                      : totalCount > 0 && translatedCount >= totalCount
+                        ? "Preparing your subtitle file…"
+                        : etaSeconds === null
+                          ? "Estimating time remaining…"
+                          : `Estimated time remaining: ${etaSeconds < 60
+                            ? "less than a minute"
+                            : `about ${Math.ceil(etaSeconds / 60)} min`}`}
+                  </p>
+                )}
                 {translating && (
                   <div className="flex flex-wrap gap-2" aria-label="Translation controls">
                     <Button type="button" variant="outline" size="sm" disabled={!controlToken.current || controlPending !== null}

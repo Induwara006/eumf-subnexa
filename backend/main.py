@@ -463,8 +463,8 @@ async def translate_srt_stream(
         )
 
     # SubNexa 0.2 supports 2,000+ subtitle lines by processing multiple safe batches.
-    # Preserve the existing Gemini Pro 1,500-entry limit exactly as before.
-    max_subtitles = 5000 if model_choice == "subnexa_02" else 1500
+    # SubNexa Pro accepts up to 2,500 entries using its existing adaptive batches.
+    max_subtitles = 5000 if model_choice == "subnexa_02" else 2500
     if len(subtitles) > max_subtitles:
         raise HTTPException(
             status_code=400,
