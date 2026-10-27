@@ -786,12 +786,37 @@ async def translate_srt_stream(
         # SubNexa V4.7 MODEL SELECTOR: no global env mutations, safe concurrent jobs.
         from subnexa_model_router import set_mode, reset_mode
         token = set_mode(model_choice)
+        stream = generate_progress()
+        pending = None
         try:
-            async for chunk in generate_progress():
+            while True:
+                if pending is None:
+                    pending = asyncio.create_task(anext(stream))
+                ready, _ = await asyncio.wait({pending}, timeout=10)
+                if not ready:
+                    # SSE comments keep idle connections alive without UI events.
+                    yield ": heartbeat\n\n"
+                    continue
+                try:
+                    chunk = pending.result()
+                except StopAsyncIteration:
+                    break
+                pending = None
                 yield chunk
         finally:
+            if pending is not None:
+                if not pending.done():
+                    pending.cancel()
+                try:
+                    await pending
+                except (asyncio.CancelledError, StopAsyncIteration):
+                    pass
+                except Exception:
+                    pass
+            await stream.aclose()
             _ACTIVE_TRANSLATIONS.pop(control_token, None)
             reset_mode(token)
+
 
     return StreamingResponse(
         subnexa_v47_selected_progress(),

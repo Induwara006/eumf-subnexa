@@ -76,7 +76,11 @@ class PoolModels:
             if self.client is None:
                 if self.provider == 'gemini':
                     from google import genai
-                    self.client = genai.Client(api_key=self.values[self.index])
+                    self.client = genai.Client(
+                        api_key=self.values[self.index],
+                        http_options={"timeout": 90000,
+                                      "retry_options": {"attempts": 1}},
+                    )
                 else:
                     from cloudflare_subnexa import CloudflareClient
                     self.client = CloudflareClient(*self.values[self.index])

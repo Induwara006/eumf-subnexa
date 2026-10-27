@@ -576,6 +576,7 @@ export default function Home() {
     logActivity(isResume ? "Reconnecting to saved translation" : "Starting translation", "Connecting to SubNexa AI...");
     notify(isResume ? "User requested to resume translation. Connecting to saved progress…" : "Starting translation...");
 
+    let streamStarted = false;
     try {
       setSourceText(await file.text());
       const formData = new FormData();
@@ -615,6 +616,8 @@ export default function Home() {
         if (!line.startsWith("data: ")) return;
 
         const data = JSON.parse(line.slice(6));
+
+        if (data.type === "resume_status" || data.type === "progress") streamStarted = true;
 
         if (data.type === "activity") {
           const count = typeof data.count === "number" ? data.count : 0;
@@ -782,8 +785,15 @@ export default function Home() {
       const reason = rawReason === "Failed to fetch" || rawReason.includes("NetworkError")
         ? "Cannot reach translation server. Check backend URL, browser network and CORS settings."
         : rawReason;
-      logActivity("Translation error", reason, "warn");
-      notify(reason, true);
+      if (streamStarted) {
+        setInterruption("failed");
+        const message = "Translation connection interrupted. Resume with the same file and settings to recover server-saved progress.";
+        logActivity("Translation interrupted", reason, "warn");
+        notify(message, true);
+      } else {
+        logActivity("Translation error", reason, "warn");
+        notify(reason, true);
+      }
     } finally {
       controlToken.current = null;
       setControlPending(null);
