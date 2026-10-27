@@ -559,6 +559,8 @@ async def translate_srt_stream(
         cf_normal = selected_mode() == "subnexa_02"
         remaining = [i for i in range(total) if str(i) not in saved]
         planner = AdaptiveBatchPlanner()
+        deferred = set()
+        final_repair_pass = False
         while remaining:
             if control_record["action"]:
                 save_progress(job_id, saved)
@@ -687,6 +689,14 @@ async def translate_srt_stream(
                         # The good entries will never be retranslated.
                         queue = [[i] for i in unresolved] + queue
                         continue
+                    if unresolved and not hard_failure and selected_mode() == "subnexa_pro":
+                        deferred.update(unresolved)
+                        print(f"[SubNexa] deferred subtitle(s) "
+                              f"{[i + 1 for i in unresolved]}; continuing pending work",
+                              flush=True)
+                        yield event("activity", stage="repair_deferred",
+                                    count=len(unresolved))
+                        continue
                     print(f"[SubNexa] paused: unrepaired subtitle(s) "
                           f"{[i + 1 for i in unresolved]}", flush=True)
                     yield event("activity", stage="failed", count=len(unresolved))
@@ -736,9 +746,26 @@ async def translate_srt_stream(
             if not had_split:
                 planner.success()
 
+            if not remaining and deferred and not final_repair_pass:
+                remaining = sorted(i for i in deferred if str(i) not in saved)
+                deferred.clear()
+                final_repair_pass = True
+                if remaining:
+                    print(f"[SubNexa] final contextual repair: {len(remaining)} lines",
+                          flush=True)
+                    yield event("activity", stage="repair", count=len(remaining))
+
         if control_record["action"]:
             save_progress(job_id, saved)
             yield interruption_event()
+            return
+        pending = [i for i in range(total) if str(i) not in saved]
+        if pending:
+            save_progress(job_id, saved)
+            print(f"[SubNexa] final repair incomplete; pending subtitle(s) "
+                  f"{[i + 1 for i in pending]}", flush=True)
+            yield event("activity", stage="failed", count=len(pending))
+            yield interruption_event("failed")
             return
         rendered, credit_added = render_subtitles(
             subtitles, output_format, opening_credit

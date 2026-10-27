@@ -266,18 +266,25 @@ def _snx_v46_quality_issues(original, value):
             return True
     return False
 
-def _invalid(value: str, original: str = "") -> bool:
-    # SubNexa V4.6 COMPAT: reject only high-confidence errors
-    if _snx_v46_quality_issues(original, value):
-        return True
-    return (
-        not value.strip()
-        or _bad_script(value)
-        or _unexpected_symbols(value, original)
-        or _obvious_grammar_error(value)
-        or _high_confidence_meaning_error(value, original)
-        or Counter(TOKEN_RE.findall(value)) != Counter(TOKEN_RE.findall(original))
+def _invalid_reasons(value: str, original: str = "") -> list[str]:
+    """Diagnostic codes only; never log subtitle text or credentials."""
+    if not isinstance(value, str):
+        return ["non_text"]
+    checks = (
+        ("source_quality", _snx_v46_quality_issues(original, value)),
+        ("empty", not value.strip()),
+        ("foreign_script", _bad_script(value)),
+        ("unexpected_symbols", _unexpected_symbols(value, original)),
+        ("grammar", _obvious_grammar_error(value)),
+        ("meaning", _high_confidence_meaning_error(value, original)),
+        ("glossary_tokens", Counter(TOKEN_RE.findall(value)) !=
+         Counter(TOKEN_RE.findall(original))),
     )
+    return [name for name, failed in checks if failed]
+
+
+def _invalid(value: str, original: str = "") -> bool:
+    return bool(_invalid_reasons(value, original))
 
 
 def _parse_array(response, expected: int) -> list[str]:
@@ -528,6 +535,9 @@ ENGLISH AND DRAFT SINHALA PAIRS:
         if on_stage:
             on_stage("repair", len(bad_indexes))
         print(f"[SubNexa AI] repairing {len(bad_indexes)}/{len(texts)} invalid lines", flush=True)
+        for i in bad_indexes:
+            print(f"[SubNexa AI] invalid batch entry {i + 1}: "
+                  f"{','.join(_invalid_reasons(final[i], texts[i]))}", flush=True)
         repair_pairs = [
             {"english": texts[i], "draft_sinhala": drafts[i],
              "reviewed_sinhala": reviewed[i]}
@@ -557,6 +567,7 @@ Remove unexplained '#' symbols, markdown formatting, stray foreign scripts,
 and replacement glyphs; keep symbols that are truly part of the English meaning.
 No explanations. Return ONLY a JSON array of exactly {len(bad_indexes)} strings.
 
+{context_note}
 {glossary_note}
 INPUT JSON:
 {json.dumps(repair_pairs, ensure_ascii=False)}
@@ -653,10 +664,12 @@ async def translate_batch_to_sinhala(texts, style="natural", on_stage=None,
     invalid = []
     for i, (line, mapping) in enumerate(zip(translated, token_maps)):
         if not tokens_intact(line, mapping):
+            print(f"[SubNexa Glossary] invalid batch entry {i + 1}: glossary_tokens", flush=True)
             invalid.append(i)
             continue
         restored = restore_line(line, mapping)
         if _invalid_restored(restored, texts[i], mapping):
+            print(f"[SubNexa Glossary] invalid batch entry {i + 1}: restored_validation", flush=True)
             invalid.append(i)
         else:
             safe[i] = restored
