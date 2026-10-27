@@ -385,6 +385,32 @@ from subnexa_auth import current_user_sub
 
 _ACTIVE_TRANSLATIONS = {}
 
+async def _translation_events(record):
+    """Subscribers may disconnect without cancelling the paid translation job."""
+    cursor = 0
+    while True:
+        async with record["condition"]:
+            if cursor == len(record["events"]) and not record["done"]:
+                try:
+                    await asyncio.wait_for(record["condition"].wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    pass
+            events = record["events"][cursor:]
+            cursor += len(events)
+            done = record["done"]
+        for chunk in events:
+            yield chunk
+        if done:
+            return
+        if not events:
+            yield ": heartbeat\n\n"
+
+
+def _translation_response(record):
+    return StreamingResponse(_translation_events(record), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 class TranslationControlRequest(BaseModel):
     token: str
     action: str
@@ -491,10 +517,18 @@ async def translate_srt_stream(
     # as authority for interruption. Block duplicate active streams for the same cache.
     from subnexa_auth import current_user_sub
     owner = current_user_sub()
-    if any(rec["job_id"] == job_id for rec in _ACTIVE_TRANSLATIONS.values()):
-        raise HTTPException(status_code=409, detail="This subtitle translation is already running")
+    for rec in _ACTIVE_TRANSLATIONS.values():
+        if rec["job_id"] != job_id:
+            continue
+        if rec["owner"] != owner:
+            raise HTTPException(status_code=409, detail="This subtitle translation is already running")
+        if rec["export"] != (output_format, opening_credit):
+            raise HTTPException(status_code=409, detail="Resume with the same output format and credit setting")
+        return _translation_response(rec)
     control_token = secrets.token_urlsafe(32)
-    control_record = {"job_id": job_id, "owner": owner, "action": None}
+    control_record = {"job_id": job_id, "owner": owner, "action": None,
+                      "export": (output_format, opening_credit), "events": [],
+                      "condition": asyncio.Condition(), "done": False}
     _ACTIVE_TRANSLATIONS[control_token] = control_record
 
     async def generate_progress():
@@ -782,53 +816,36 @@ async def translate_srt_stream(
         yield event("complete", **data)
 
 
-    async def subnexa_v47_selected_progress():
-        # SubNexa V4.7 MODEL SELECTOR: no global env mutations, safe concurrent jobs.
+    async def run_translation():
         from subnexa_model_router import set_mode, reset_mode
         token = set_mode(model_choice)
-        stream = generate_progress()
-        pending = None
         try:
-            while True:
-                if pending is None:
-                    pending = asyncio.create_task(anext(stream))
-                ready, _ = await asyncio.wait({pending}, timeout=10)
-                if not ready:
-                    # SSE comments keep idle connections alive without UI events.
-                    yield ": heartbeat\n\n"
-                    continue
-                try:
-                    chunk = pending.result()
-                except StopAsyncIteration:
-                    break
-                pending = None
-                yield chunk
+            async for chunk in generate_progress():
+                async with control_record["condition"]:
+                    control_record["events"].append(chunk)
+                    control_record["condition"].notify_all()
+        except Exception as error:
+            print(f"[SubNexa] job failed: {type(error).__name__}", flush=True)
+            async with control_record["condition"]:
+                control_record["events"].append("data: " + json.dumps({
+                    "type": "error", "message": "Translation interrupted. Resume to recover saved progress."
+                }) + "\n\n")
         finally:
-            if pending is not None:
-                if not pending.done():
-                    pending.cancel()
-                try:
-                    await pending
-                except (asyncio.CancelledError, StopAsyncIteration):
-                    pass
-                except Exception:
-                    pass
-            await stream.aclose()
+            async with control_record["condition"]:
+                control_record["done"] = True
+                control_record["condition"].notify_all()
             _ACTIVE_TRANSLATIONS.pop(control_token, None)
             reset_mode(token)
 
-
-    return StreamingResponse(
-        subnexa_v47_selected_progress(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
-        }
-    )
+    # Strong reference retains the producer after an HTTP disconnect. It finishes
+    # normally or responds to the existing authenticated Pause/Stop controls.
+    control_record["task"] = asyncio.create_task(run_translation())
+    return _translation_response(control_record)
 
 
 # SubNexa V4.2 — consent-based user-owned Google Cloud Gemini keys
 from subnexa_auth import router as subnexa_auth_router, UserKeyASGIMiddleware
 app.include_router(subnexa_auth_router)
+from subnexa_library import router as subnexa_library_router
+app.include_router(subnexa_library_router)
 app.add_middleware(UserKeyASGIMiddleware)

@@ -11,7 +11,7 @@ from subnexa_auth import current_translation_key
 from dotenv import load_dotenv
 from google import genai
 
-from glossary_engine import TOKEN_RE, mask_batch, restore_line, tokens_intact
+from glossary_engine import TOKEN_RE, mask_batch, restore_line, tokens_intact, recover_tokens
 from codecraft_fallback import should_fallback, generate_array as codecraft_generate_array
 
 load_dotenv()
@@ -393,6 +393,15 @@ INPUT JSON ARRAY:
             raise PartialBatchTranslationError(good, missing)
         return result
 
+    # Pro only: recover exact configured outputs before strict validation.
+    hint_maps = [{} for _ in texts]
+    for hint in glossary_hints or []:
+        hint_maps[hint["entry"] - 1][hint["token"]] = hint["FINAL_TEXT"]
+
+    def recover(lines, indexes=None):
+        positions = range(len(texts)) if indexes is None else indexes
+        return [recover_tokens(line, hint_maps[i]) for i, line in zip(positions, lines)]
+
     draft_prompt = f"""{TRANSLATION_RULES}
 PHASE 1 — WRITE NATURAL CINEMATIC SUBTITLES.
 Style: {selected}
@@ -419,6 +428,8 @@ ENGLISH ENTRIES:
         on_stage("translation", len(texts))
     print(f"[SubNexa AI] translation pass: {len(texts)} lines", flush=True)
     drafts = await asyncio.to_thread(_generate_array, client, draft_prompt, len(texts))
+
+    drafts = recover(drafts)
 
     pairs = [
         {"english": original, "draft_sinhala": draft}
@@ -522,6 +533,8 @@ ENGLISH AND DRAFT SINHALA PAIRS:
         print("[SubNexa AI] using validated draft (review unavailable)", flush=True)
         return drafts
 
+    reviewed = recover(reviewed)
+
     # Repair only the visibly invalid entries, never retranslate the entire batch.
     # Valid first-pass entries can replace invalid review entries immediately.
     final = [
@@ -583,6 +596,7 @@ INPUT JSON:
             repair_error = error
             repaired = [None] * len(bad_indexes)
 
+        repaired = recover(repaired, bad_indexes)
         repaired_count = 0
         for index, line in zip(bad_indexes, repaired):
             if isinstance(line, str) and not _invalid(line, texts[index]):

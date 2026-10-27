@@ -148,3 +148,36 @@ def preview_glossary(text, rules):
         "restored_example": restore_line(masked[0], maps[0]),
         "note": "This is a local placeholder simulation, not an AI translation.",
     }
+
+
+def recover_tokens(text, mapping):
+    """Recover only unambiguous exact glossary outputs or formatted token IDs.
+
+    Never insert missing words or accept another entry's placeholders. Failure
+    returns the original output so existing strict validation still rejects it.
+    """
+    if not isinstance(text, str) or not mapping or tokens_intact(text, mapping):
+        return text
+    original = text
+    # Whitespace/case changes inside a known marker do not change its identity.
+    def canonical(match):
+        token = "[[SNX_" + match.group(1).zfill(4) + "]]"
+        return token if token in mapping else match.group(0)
+    text = re.sub(r"\[\[\s*SNX\s*_\s*(\d{1,4})\s*\]\]", canonical,
+                  text, flags=re.IGNORECASE)
+    found = Counter(TOKEN_RE.findall(text))
+    if any(token not in mapping or count != 1 for token, count in found.items()):
+        return original
+    missing = [token for token in mapping if token not in found]
+    # Identical/overlapping targets cannot be assigned safely to individual IDs.
+    targets = list(mapping.values())
+    for token in missing:
+        value = mapping[token]
+        if not value or sum(value in other or other in value for other in targets) != 1:
+            return original
+        pattern = re.compile(r"(?<!\w)" + re.escape(value) + r"(?!\w)")
+        hits = list(pattern.finditer(text))
+        if len(hits) != 1:
+            return original
+        text = pattern.sub(lambda _: token, text, count=1)
+    return text if tokens_intact(text, mapping) else original

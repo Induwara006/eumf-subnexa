@@ -11,8 +11,10 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Compass,
   Copy,
   Cpu,
   Download,
@@ -39,8 +41,11 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 import SubNexaAccountDock from "../components/SubNexaAccountDock";
+import SubtitleLibrary from "../components/SubtitleLibrary";
+import LibrarySearchResults from "../components/LibrarySearchResults";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -203,13 +208,15 @@ function StepLink({ href, index, label, state }: {
 export default function Home() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"source" | "translated" | "compare">("source");
+  const [library, setLibrary] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(false);
   const [sourceText, setSourceText] = useState("");
   const [cueSearch, setCueSearch] = useState("");
   const [jumpNumber, setJumpNumber] = useState("");
   const [jumpTarget, setJumpTarget] = useState<number | null>(null);
   const [previewNotice, setPreviewNotice] = useState("");
   const [editingCue, setEditingCue] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState("");
+  const editDraft = useRef("");
   const [editError, setEditError] = useState("");
   const [editedIndices, setEditedIndices] = useState<number[]>([]);
   const [cinemaOpen, setCinemaOpen] = useState(false);
@@ -604,7 +611,7 @@ export default function Home() {
       return;
     }
 
-    setReadyDownload(null);
+    if (!isResume) setReadyDownload(null);
     setInterruption(null);
     setControlPending(null);
     controlToken.current = null;
@@ -617,10 +624,10 @@ export default function Home() {
     etaSample.current = null;
     setEtaSeconds(null);
     setTranslating(true);
-    setProgress(0);
+    if (!isResume) setProgress(0);
     setResuming(false);
-    setTranslatedCount(0);
-    setTotalCount(0);
+    if (!isResume) setTranslatedCount(0);
+    if (!isResume) setTotalCount(0);
     setActivity([]);
     logActivity(isResume ? "Reconnecting to saved translation" : "Starting translation", "Connecting to SubNexa AI...");
     notify(isResume ? "User requested to resume translation. Connecting to saved progress…" : "Starting translation...");
@@ -636,6 +643,10 @@ export default function Home() {
       formData.append("output_format", exportFormat);
       formData.append("opening_credit", String(openingCredit));
 
+      let completed = false;
+      for (let reconnect = 0; reconnect < 4; reconnect++) {
+      let transportFailure = true;
+      try {
       const response = await fetch(`${API}/translate-srt-stream`, {
         method: "POST",
         credentials: "include",
@@ -643,6 +654,7 @@ export default function Home() {
       });
 
       if (!response.ok) {
+        transportFailure = false;
         const data = await response.json().catch(() => null);
         const detail = typeof data?.detail === "string" ? data.detail : "";
         if (response.status === 401) throw new Error("Google session expired. Please sign in again.");
@@ -659,7 +671,6 @@ export default function Home() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let completed = false;
 
       function processEvent(line: string) {
         if (!line.startsWith("data: ")) return;
@@ -683,6 +694,9 @@ export default function Home() {
               break;
             case "review":
               logActivity("AI quality review", `Checking ${count} Sinhala lines`);
+              break;
+            case "repair_deferred":
+              logActivity("Repair postponed", `${count} subtitle(s) will be retried after the remaining work`, "warn");
               break;
             case "repair":
               logActivity("Repairing subtitles", `${count} line(s) need correction`, "warn");
@@ -764,7 +778,7 @@ export default function Home() {
           setTotalCount(data.total);
           setProgress(
             data.total > 0
-              ? Math.round((data.completed / data.total) * 100)
+              ? Math.min(99, Math.floor((data.completed / data.total) * 100))
               : 0
           );
           // Keep the resume message visible when loading saved work.
@@ -808,10 +822,12 @@ export default function Home() {
         }
 
         if (data.type === "error") {
+          transportFailure = false;
           throw new Error(data.message || "Translation failed.");
         }
       }
 
+      try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -828,6 +844,17 @@ export default function Home() {
 
       if (!completed) {
         throw new Error("Translation stopped before completion.");
+      }
+      } finally {
+        await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
+      }
+      break;
+      } catch (error) {
+        if (!transportFailure || completed || reconnect === 3) throw error;
+        logActivity("Reconnecting", "Recovering the running translation and saved progress…", "warn");
+        await new Promise(resolve => setTimeout(resolve, 2000 * (reconnect + 1)));
+      }
       }
     } catch (error) {
       const rawReason = error instanceof Error ? error.message : "Cannot connect to backend.";
@@ -867,16 +894,31 @@ export default function Home() {
   const sourceCues = useMemo(() => parseStudioCues(sourceText || preview, "srt"), [sourceText, preview]);
   const translatedCues = useMemo(() => parseStudioCues(readyDownload?.content || "", readyDownload?.format || "srt"), [readyDownload]);
   const cues = tab === "source" ? sourceCues : translatedCues;
-  const matchedSource = (cue: StudioCue) => findSourceMatch(cue, sourceCues);
+  const sourceMatches = useMemo(() => {
+    const exact = new Map<string, StudioCue>();
+    for (const source of sourceCues) {
+      const key = `${timeKey(source.start)}:${timeKey(source.end)}`;
+      if (!exact.has(key)) exact.set(key, source);
+    }
+    const matches = new Map<StudioCue, StudioCue | undefined>();
+    for (const cue of cues) {
+      const start = timeKey(cue.start);
+      const end = timeKey(cue.end);
+      matches.set(cue, start === null || end === null ? undefined
+        : exact.get(`${start}:${end}`) ?? findSourceMatch(cue, sourceCues));
+    }
+    return matches;
+  }, [cues, sourceCues]);
+  const matchedSource = (cue: StudioCue) => sourceMatches.get(cue);
   const visibleIndices = useMemo(() => {
     const query = cueSearch.trim().toLocaleLowerCase();
     return cues.flatMap((cue, index) => {
       if (!query) return [index];
-      const match = sourceCues.find(src => src.start === cue.start && src.end === cue.end) || findSourceMatch(cue, sourceCues);
+      const match = sourceMatches.get(cue);
       const combined = `${cue.number} ${cue.time} ${cue.text} ${match?.text ?? ""}`.toLocaleLowerCase();
       return combined.includes(query) ? [index] : [];
     });
-  }, [cues, sourceCues, cueSearch]);
+  }, [cues, sourceMatches, cueSearch]);
   const sceneCue = cues[sceneIndex] || cues[0];
   const sceneSource = sceneCue ? matchedSource(sceneCue) : undefined;
   const sceneIsCredit = tab !== "source" && readyDownload?.creditAdded && sceneCue && !sceneSource;
@@ -904,14 +946,14 @@ export default function Home() {
     const cue = translatedCues[index];
     if (!cue || (readyDownload.creditAdded && !matchedSource(cue))) return;
     setEditingCue(index);
-    setEditDraft(cue.text);
+    editDraft.current = cue.text;
     setEditError("");
   }
 
   function saveEditedCue(index: number) {
     if (!readyDownload) return;
     try {
-      const edited = replaceStudioCue(readyDownload.content, readyDownload.format, index, editDraft);
+      const edited = replaceStudioCue(readyDownload.content, readyDownload.format, index, editDraft.current);
       setReadyDownload({ ...readyDownload, content: edited });
       setEditedIndices(previous => previous.includes(index) ? previous : [...previous, index]);
       setEditingCue(null);
@@ -998,7 +1040,7 @@ export default function Home() {
               {isEditing && (
                 <div className="mt-2 space-y-2 rounded-[4px] border border-primary/40 bg-primary/5 p-3">
                   <Label htmlFor={`sn-edit-${i}`} className="text-[11px]">Edit Sinhala subtitle #{cue.number}</Label>
-                  <Textarea id={`sn-edit-${i}`} lang="si" rows={3} maxLength={600} value={editDraft} onChange={e => setEditDraft(e.target.value)} className="min-h-20 text-sm" />
+                  <Textarea id={`sn-edit-${i}`} lang="si" rows={3} maxLength={600} defaultValue={editDraft.current} onChange={e => { editDraft.current = e.target.value; }} className="min-h-20 text-sm" />
                   {editError && <p role="alert" className="text-[11px] text-destructive">{editError}</p>}
                   <div className="flex flex-wrap items-center gap-2">
                     <Button size="sm" className="h-7 text-[11px]" onClick={() => saveEditedCue(i)}>Save line</Button>
@@ -1048,6 +1090,8 @@ export default function Home() {
           </span>
         </div>
       )}
+      <SubtitleLibrary open={library} onOpenChange={setLibrary} api={API} />
+
       {!signedIn && (<>
       <header className={cn(
         "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
@@ -1094,6 +1138,9 @@ export default function Home() {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Button asChild size="lg" className="h-12 gap-2 px-7 text-base font-bold">
                 <a href={`${API}/subnexa-auth/login`}><LogIn className="size-5" />Sign in to translate</a>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="h-12 gap-2 border-white/25 bg-black/30 px-6 text-base text-white hover:bg-white/15">
+                <Link href="/library"><Download className="size-5" />Download subtitles</Link>
               </Button>
               <Button size="lg" variant="secondary" className="h-12 gap-2 bg-white/15 px-6 text-base text-white hover:bg-white/25" onClick={() => setHelp(true)}>
                 <Info className="size-5" />How it works
@@ -1182,7 +1229,7 @@ export default function Home() {
       </>)}
 
       {signedIn && (<>
-        <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r border-white/10 bg-[#0b0b0b] px-4 py-5 lg:flex">
+        <aside inert={navCollapsed} className={cn("fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r border-white/10 bg-[#0b0b0b] px-4 py-5 transition-transform duration-300 ease-in-out motion-reduce:transition-none lg:flex", navCollapsed && "-translate-x-full")}>
           <a href="#sn-overview" className="netflix-logo px-2 text-2xl" aria-label="SubNexa studio">SubNexa</a>
           <nav className="mt-7 flex flex-col gap-0.5" aria-label="Studio">
             {studioNav.map(item => (
@@ -1190,6 +1237,9 @@ export default function Home() {
                 <item.icon className="size-4" />{item.label}
               </a>
             ))}
+            <button type="button" onClick={() => setLibrary(true)} className="flex items-center gap-3 rounded-[4px] px-2.5 py-2 text-left text-[13px] text-white/60 transition-colors hover:bg-white/5 hover:text-white">
+              <Compass className="size-4 text-primary" />Discover subtitles
+            </button>
           </nav>
           <div className="mt-auto rounded-[4px] border border-white/10 bg-white/[0.03] p-3">
             <p className="text-[9px] uppercase tracking-[0.16em] text-white/35">Signed in</p>
@@ -1197,14 +1247,27 @@ export default function Home() {
           </div>
         </aside>
 
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-[#141414]/95 backdrop-blur lg:ml-64">
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+        <button
+          type="button"
+          onClick={() => setNavCollapsed(value => !value)}
+          aria-label={navCollapsed ? "Open sidebar" : "Close sidebar"}
+          aria-expanded={!navCollapsed}
+          className={cn(
+            "fixed top-[1.15rem] z-[60] hidden size-7 items-center justify-center rounded-full border border-white/15 bg-[#141414] text-white/70 shadow-md transition-[left,background-color,color] duration-300 ease-in-out hover:bg-primary hover:text-white motion-reduce:transition-none lg:flex",
+            navCollapsed ? "left-2" : "left-[calc(16rem-0.875rem)]",
+          )}
+        >
+          {navCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+        </button>
+
+        <header className={cn("sticky top-0 z-40 border-b border-white/10 bg-[#141414]/95 backdrop-blur transition-[margin] duration-300 ease-in-out motion-reduce:transition-none", navCollapsed ? "lg:ml-0" : "lg:ml-64")}>
+          <div className={cn("flex h-16 items-center gap-3 px-4 transition-[padding] duration-300 motion-reduce:transition-none sm:px-6", navCollapsed && "lg:pl-12")}>
             <a href="#sn-overview" className="netflix-logo text-xl lg:hidden">SubNexa</a>
             <div className="hidden min-w-0 sm:block">
               <h1 className="truncate text-sm font-semibold">Welcome back, {firstName}</h1>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <div className="hidden items-center gap-2 rounded-[4px] border border-white/10 bg-white/5 px-3 md:flex">
+              <div className="relative hidden items-center gap-2 rounded-[4px] border border-white/10 bg-white/5 px-3 md:flex">
                 <Search className="size-3.5 text-white/35" />
                 <Input
                   value={cueSearch}
@@ -1213,6 +1276,7 @@ export default function Home() {
                   aria-label="Search subtitles"
                   className="h-8 w-40 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
                 />
+                <LibrarySearchResults query={cueSearch} api={API} onBrowse={() => setLibrary(true)} />
               </div>
               <Button variant="ghost" size="icon" className="text-white/60 hover:text-white" aria-label="Guide" onClick={() => setHelp(true)}>
                 <CircleHelp />
@@ -1224,12 +1288,13 @@ export default function Home() {
             {studioNav.map(item => (
               <a key={item.href} href={item.href} className="shrink-0 rounded-[3px] px-2.5 py-1.5 text-white/55 transition-colors hover:bg-white/5 hover:text-white">{item.label}</a>
             ))}
+            <button type="button" onClick={() => setLibrary(true)} className="shrink-0 rounded-[3px] px-2.5 py-1.5 text-white/55 transition-colors hover:bg-white/5 hover:text-white">Discover subtitles</button>
           </nav>
         </header>
       </>)}
 
       {signedIn && (
-      <main id="sn-workspace" className="w-full flex-1 scroll-mt-6 px-4 pb-28 pt-6 sm:px-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:px-8">
+      <main id="sn-workspace" className={cn("w-full flex-1 scroll-mt-6 px-4 pb-28 pt-6 transition-[margin,width] duration-300 ease-in-out motion-reduce:transition-none sm:px-6 lg:px-8", navCollapsed ? "lg:ml-0 lg:w-full" : "lg:ml-64 lg:w-[calc(100%-16rem)]")}>
         <div id="sn-overview" className="mb-8 scroll-mt-24">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
