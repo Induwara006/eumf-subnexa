@@ -11,7 +11,7 @@
   --font-sinhala: var(--font-sinhala);
   --font-heading: var(--font-mona-sans);
   --font-display: var(--font-bricolage);
-  --font-bebas: var(--font-bebas-neue);
+  --font-geist: var(--font-geist-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -96,6 +96,14 @@
   html {
     @apply font-sans;
     scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
   body {
     @apply bg-background text-foreground;
@@ -110,6 +118,8 @@ body {
   font-family: var(--font-mona-sans), "Segoe UI", Arial, sans-serif;
   min-height: 100vh;
   font-optical-sizing: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* Sinhala needs more height than Latin: taller line box, slightly larger glyphs. */
@@ -167,8 +177,8 @@ body {
 }
 
 .netflix-row {
-  scrollbar-width: thin;
-  scrollbar-color: var(--primary) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .netflix-tile {
@@ -188,25 +198,15 @@ body {
 }
 
 .cue-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--primary) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .cue-scroll::-webkit-scrollbar,
 .netflix-row::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.cue-scroll::-webkit-scrollbar-thumb,
-.netflix-row::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
-  border-radius: 999px;
-}
-
-.cue-scroll::-webkit-scrollbar-thumb:hover,
-.netflix-row::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

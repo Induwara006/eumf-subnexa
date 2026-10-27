@@ -18,11 +18,11 @@ const bricolage = localFont({
   src: "./fonts/bricolage-grotesque-latin.woff2",
 });
 
-const bebasNeue = localFont({
-  variable: "--font-bebas-neue",
+const geist = localFont({
+  variable: "--font-geist-sans",
   display: "swap",
-  weight: "400",
-  src: "./fonts/bebas-neue-latin.woff2",
+  weight: "100 900",
+  src: "./fonts/geist-latin.woff2",
 });
 
 const notoSinhala = localFont({
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${monaSans.variable} ${bricolage.variable} ${bebasNeue.variable} ${notoSinhala.variable} h-full antialiased`}>
+    <html lang="en" className={`dark ${monaSans.variable} ${bricolage.variable} ${geist.variable} ${notoSinhala.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-[#141414]">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster theme="dark" position="bottom-right" />
