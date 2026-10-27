@@ -1266,7 +1266,6 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="h-6 w-1 rounded-full bg-primary" />
               <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Workspace</h2>
-              <Badge variant="outline" className="h-5 border-white/20 px-2 text-[9px] font-semibold tracking-[0.16em] text-white/70">S1:E1</Badge>
               <Badge className="h-5 bg-primary px-2 text-[9px] font-bold tracking-[0.14em]">{modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
             </div>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
