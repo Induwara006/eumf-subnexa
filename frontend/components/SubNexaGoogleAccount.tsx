@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
-  Cloud,
   ExternalLink,
   KeyRound,
   Loader2,
@@ -19,7 +18,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
 
 type Session = {
   signed_in: boolean;
@@ -115,8 +113,6 @@ export default function SubNexaGoogleAccount() {
     }
   }
 
-  const connectedTone = session?.connected ? "text-success" : "text-warning";
-
   return (
     <div className="space-y-5">
       {!session?.signed_in ? (
@@ -144,37 +140,7 @@ export default function SubNexaGoogleAccount() {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{session.name || session.email}</p>
               {session.email && session.name && <p className="truncate text-[11px] text-muted-foreground">{session.email}</p>}
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <Badge
-                  variant="outline"
-                  className={cn("h-5 gap-1 border-white/20 px-2 text-[10px] font-normal", connectedTone)}
-                >
-                  <span className={cn("size-1.5 rounded-full", session.connected ? "bg-success" : "bg-warning")} />
-                  {session.connected ? "Configured" : "Not configured"}
-                </Badge>
-                <Badge variant="outline" className="h-5 border-white/20 px-2 text-[10px] font-normal text-muted-foreground">
-                  {session.provider === "gemini_cloudflare" ? "Gemini + Cloudflare" : session.provider === "cloudflare" ? "Cloudflare" : "Gemini"}
-                </Badge>
-              </div>
             </div>
-          </div>
-
-          <div className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Cloud className="size-4 text-primary" />
-              <span className="font-medium text-foreground">Site translation service</span>
-              <Badge variant="outline" className="text-[10px]">
-                {session.connected ? "Configured" : "Not configured"}
-              </Badge>
-            </div>
-            <p>
-              {session.provider === "gemini_cloudflare"
-                ? "Gemini and Cloudflare can be configured by the site. This does not mean your Google Cloud project is connected."
-                : session.provider === "cloudflare"
-                ? "Cloudflare runs using the site's server credentials and shared allocation, not a personal Google Cloud key."
-                : "Gemini translation requires an authorized credential. This service status is separate from your personal Cloud connection."}
-            </p>
-            {session.quota_notice && <p>{session.quota_notice}</p>}
           </div>
 
           <Separator />
@@ -195,19 +161,16 @@ export default function SubNexaGoogleAccount() {
                 {session.personal_project_id && <p>
                   Project: <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-foreground">{session.personal_project_id}</code>
                 </p>}
-                <p>Remaining Gemini quota: not verified. Limits and billing are managed by Google at project level.</p>
                 <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
                   <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">
                     <ExternalLink className="size-3.5" />Open Google AI Studio
                   </a>
                 </Button>
-                <p>Disconnect and revocation controls must be added before public release.</p>
               </div>
             ) : (
               <div className="space-y-4">
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   Eligible adults can separately authorize an existing Google Cloud project they own.
-                  Google Login alone does not grant Cloud administrative access, an API key, or free quota.
                 </p>
                 <div className="space-y-1.5">
                   <Label htmlFor="subnexa-project-id" className="text-[11px]">Your Google Cloud project ID</Label>
@@ -245,9 +208,6 @@ export default function SubNexaGoogleAccount() {
                   {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
                   {busy ? "Connecting…" : "Authorize Cloud & Create Key"}
                 </Button>
-                <p className="text-[10px] text-muted-foreground">
-                  Not ready for public release until eligibility validation, secure storage and revocation are in place.
-                </p>
               </div>
             )}
           </div>
@@ -269,7 +229,7 @@ export default function SubNexaGoogleAccount() {
       )}
 
       <p className="text-[10px] leading-relaxed text-muted-foreground">
-        API secrets remain server-side. Google Cloud admin permissions are not granted by Google Login alone.
+        Your Google account is used only to keep translation jobs tied to your workspace.
       </p>
     </div>
   );
