@@ -1869,7 +1869,6 @@ export default function Home() {
               <span className="netflix-logo text-lg">SubNexa</span>
               <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-white/45">
                 Every story, in Sinhala. Timestamps protected, dialogue reviewed by you.
-                Developed by E Unity Movie Family LK.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-white/55">
