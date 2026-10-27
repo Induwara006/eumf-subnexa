@@ -35,7 +35,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import SubNexaProviderStatus from "../components/SubNexaProviderStatus";
 import SubNexaAccountDock from "../components/SubNexaAccountDock";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -173,7 +172,7 @@ function StepLink({ href, index, label, state }: {
     <a
       href={href}
       className={cn(
-        "group relative flex flex-1 items-center justify-center gap-2 px-2 py-3.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors sm:text-xs",
+        "group relative flex flex-1 items-center justify-center gap-2 px-2 py-4 text-[11px] font-semibold tracking-[0.01em] transition-colors sm:text-xs",
         state === "current" && "text-white",
         state === "done" && "text-white/60 hover:text-white",
         state === "todo" && "text-white/40 hover:text-white/70",
@@ -564,8 +563,8 @@ export default function Home() {
       const models = await modelsReply.json();
       if (models?.available?.[modelChoice] !== true) {
         notify(modelChoice === "subnexa_pro"
-          ? "SubNexa Pro is unavailable. Gemini has not been configured on this server. No translation request was sent."
-          : "SubNexa 0.2 is unavailable. Cloudflare AI is not configured. No translation request was sent.", true);
+          ? "SubNexa Pro is unavailable right now. No translation request was sent."
+          : "SubNexa 0.2 is unavailable right now. No translation request was sent.", true);
         return;
       }
     } catch {
@@ -660,7 +659,7 @@ export default function Home() {
               logActivity("Review completed", `${count} lines checked`, "success");
               break;
             case "provider_fallback":
-              logActivity("Cloudflare backup activated", "Gemini temporarily unavailable. Continuing from saved subtitle progress.", "warn");
+              logActivity("Backup model activated", "Continuing from saved subtitle progress.", "warn");
               break;
             case "review_fallback":
               logActivity("Review unavailable", "Validated draft used", "warn");
@@ -999,7 +998,7 @@ export default function Home() {
         "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         scrolled ? "netflix-topbar-scrolled" : "netflix-topbar",
       )}>
-        <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-4 px-4 sm:h-[68px] sm:px-8">
+        <div className="mx-auto flex h-16 w-full max-w-[1480px] items-center gap-4 px-4 sm:h-[68px] sm:px-8">
           <a href="#top" className="netflix-logo text-2xl sm:text-3xl" aria-label="SubNexa home">SubNexa</a>
           <nav className="hidden items-center gap-5 text-[13px] md:flex" aria-label="Main">
             <a href="#top" className="font-medium text-white transition-colors">Home</a>
@@ -1023,15 +1022,9 @@ export default function Home() {
       </header>
 
       <section id="top" className="netflix-hero relative isolate flex min-h-[88vh] items-end overflow-hidden">
-        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-24 pt-32 sm:px-8 sm:pb-32">
+        <div className="relative z-10 mx-auto w-full max-w-[1480px] px-4 pb-24 pt-32 sm:px-8 sm:pb-32">
           <div className="max-w-3xl">
-            <div className="mb-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.32em] text-white/75 sm:text-[11px]">
-              <span className="text-primary">S</span>
-              A SubNexa Original
-              <span className="h-px w-10 bg-primary/70" />
-              Subtitle studio
-            </div>
-            <h1 className="text-[3.2rem] font-black leading-[0.9] tracking-[-0.045em] text-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.6)] sm:text-7xl lg:text-[5.6rem]">
+            <h1 className="font-bebas text-[3.7rem] font-normal leading-[0.88] tracking-[0.01em] text-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.6)] sm:text-8xl lg:text-[6.4rem]">
               Every story.<br />
               <span className="text-white/85">In Sinhala.</span>
             </h1>
@@ -1053,7 +1046,7 @@ export default function Home() {
               </Button>
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-2 text-[11px] text-white/60">
-              <Badge className="h-5 gap-1 bg-primary px-2 text-[9px] font-bold uppercase tracking-[0.16em]">New</Badge>
+              <Badge className="h-5 gap-1 bg-primary px-2 text-[10px] font-semibold">New</Badge>
               <span>SubNexa Pro &amp; 0.2 model routing</span>
               <span className="text-white/25">|</span>
               <span>SRT &amp; ASS export</span>
@@ -1067,34 +1060,34 @@ export default function Home() {
         </a>
       </section>
 
-      <section id="sn-features" className="relative z-20 mx-auto -mt-14 w-full max-w-[1400px] scroll-mt-24 px-4 sm:px-8">
+      <section id="sn-features" className="relative z-20 mx-auto -mt-16 w-full max-w-[1480px] scroll-mt-24 px-4 sm:px-8">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <h2 className="text-lg font-bold tracking-tight sm:text-xl">How SubNexa works</h2>
           <span className="text-[11px] text-muted-foreground">4 steps · zero timing changes</span>
         </div>
-        <div className="netflix-row grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="netflix-row grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { icon: Upload, step: "01", title: "Upload your SRT", detail: "Drop an English subtitle file up to 2 MB and preview every cue." },
             { icon: Sparkles, step: "02", title: "Choose the voice", detail: "Natural, casual or formal Sinhala, with SRT or ASS output." },
             { icon: Lock, step: "03", title: "Protect the names", detail: "Glossary rules keep characters, places and terms intact." },
             { icon: Download, step: "04", title: "Review & download", detail: "Compare, search and edit, then save your finished subtitles." },
           ].map(item => (
-            <div key={item.step} className="netflix-tile group relative overflow-hidden rounded-[6px] border border-white/10 bg-[#181818] p-4">
+            <div key={item.step} className="netflix-tile group relative overflow-hidden rounded-[6px] border border-white/10 bg-[#181818] p-5">
               <div className="flex items-center justify-between">
                 <span className="grid size-9 place-items-center rounded-[4px] bg-primary/15 text-primary ring-1 ring-primary/30">
                   <item.icon className="size-4" />
                 </span>
                 <span className="font-mono text-[10px] tracking-[0.2em] text-white/30">{item.step}</span>
               </div>
-              <h3 className="mt-3 text-sm font-semibold text-white">{item.title}</h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{item.detail}</p>
+              <h3 className="mt-4 text-sm font-semibold text-white">{item.title}</h3>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{item.detail}</p>
               <span className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-primary transition-transform duration-300 group-hover:scale-x-100" />
             </div>
           ))}
         </div>
       </section>
 
-      <main id="sn-workspace" className="mx-auto w-full max-w-[1400px] flex-1 scroll-mt-20 px-4 pb-24 pt-12 sm:px-8">
+      <main id="sn-workspace" className="mx-auto w-full max-w-[1480px] flex-1 scroll-mt-20 px-4 pb-28 pt-16 sm:px-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2.5">
@@ -1130,10 +1123,6 @@ export default function Home() {
               <span lang="si" className="text-sm text-foreground">සිංහල</span>
             </div>
           </div>
-        </div>
-
-        <div className="mt-5">
-          <SubNexaProviderStatus apiBase={API} />
         </div>
 
         <Dialog open={help} onOpenChange={setHelp}>
@@ -1173,8 +1162,8 @@ export default function Home() {
           <StepLink href="#sn-studio" index={3} label="Translate & review" state={readyDownload ? "done" : translating ? "current" : "todo"} />
         </nav>
 
-        <div className="mt-5 grid items-start gap-5 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
-          <div className="min-w-0 space-y-5">
+        <div className="mt-8 grid items-start gap-6 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
+          <div className="min-w-0 space-y-6">
             <Card id="sn-setup" className="scroll-mt-36 border-white/10 bg-[#181818]">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
@@ -1243,25 +1232,24 @@ export default function Home() {
                       const unavailable = modelAvailability?.[option.id] === false;
                       return (
                         <Label key={option.id} htmlFor={`ai-model-${option.id}`}
-                          className={cn("flex min-h-32 cursor-pointer flex-col gap-2 rounded-[4px] border border-white/10 bg-black/30 p-3 transition-colors hover:border-primary/40",
+                          className={cn("flex min-h-36 cursor-pointer flex-col gap-2.5 rounded-[4px] border border-white/10 bg-black/30 p-4 transition-colors hover:border-primary/40",
                             active && "border-primary/60 bg-primary/10",
                             unavailable && "cursor-not-allowed opacity-55")}>
                           <div className="flex items-start justify-between gap-2">
                             <span className="text-sm font-semibold">{option.title}</span>
                             <RadioGroupItem value={option.id} id={`ai-model-${option.id}`} disabled={unavailable} />
                           </div>
-                          <span className="text-[11px] text-muted-foreground">{option.provider}</span>
                           <span className="text-xs font-medium">{option.tier}</span>
                           <span className="text-[11px] text-muted-foreground">{option.usage}</span>
-                          {unavailable && <span className="text-[11px] text-warning">Currently unavailable — provider not configured</span>}
+                          {unavailable && <span className="text-[11px] text-warning">Currently unavailable</span>}
                         </Label>
                       );
                     })}
                   </RadioGroup>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Credit labels describe relative expected usage, not a verified cost, quota or credit balance.
-                    {modelStatusError ? " Model availability could not be checked; translation will verify again." :
-                      modelAvailability === null ? " Checking model availability…" : ""}
+                    Credit labels describe relative expected usage, not a verified cost or credit balance.
+                    {modelStatusError ? " Availability is confirmed when you translate." :
+                      modelAvailability === null ? " Checking availability…" : ""}
                   </p>
                 </div>
                 <Separator />
@@ -1278,7 +1266,7 @@ export default function Home() {
                         key={option.value}
                         htmlFor={`style-${option.value}`}
                         className={cn(
-                          "flex cursor-pointer items-start gap-3 rounded-[4px] border border-white/10 bg-black/30 p-3 transition-colors hover:border-border",
+                          "flex cursor-pointer items-start gap-3 rounded-[4px] border border-white/10 bg-black/30 p-4 transition-colors hover:border-border",
                           style === option.value && "border-primary/60 bg-primary/10",
                         )}
                       >
@@ -1300,7 +1288,7 @@ export default function Home() {
                     value={exportFormat}
                     onValueChange={value => { setExportFormat(value as ExportFormat); resetTranslationResult(); }}
                     disabled={loading}
-                    className="grid grid-cols-2 gap-2"
+                    className="grid grid-cols-2 gap-3"
                   >
                     {(["srt", "ass"] as ExportFormat[]).map(format => (
                       <Label
@@ -1319,7 +1307,7 @@ export default function Home() {
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     ASS can display red/white opening credits on compatible players. SRT uses plain text.
                   </p>
-                  <div className="flex items-start gap-3 rounded-[4px] border border-white/10 bg-black/30 p-3">
+                  <div className="flex items-start gap-3 rounded-[4px] border border-white/10 bg-black/30 p-4">
                     <Checkbox
                       id="opening-credit"
                       checked={openingCredit}
@@ -1329,7 +1317,7 @@ export default function Home() {
                     />
                     <div className="min-w-0">
                       <Label htmlFor="opening-credit" className="text-xs font-medium">Opening SubNexa AI credit</Label>
-                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
                         Only added if there is a free 5-second opening gap; dialogue times stay unchanged.
                       </p>
                     </div>
@@ -1369,7 +1357,7 @@ export default function Home() {
             </Card>
           </div>
 
-          <div className="min-w-0 space-y-5">
+          <div className="min-w-0 space-y-6">
             <Card className="border-white/10 bg-[#181818]">
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1542,7 +1530,7 @@ export default function Home() {
                     <TabsContent key={mode} value={mode} className="mt-2">
                       <div
                         ref={mode === tab ? previewViewport : null}
-                        className={cn("cue-scroll h-[360px] overflow-y-auto rounded-[4px] border border-border/60 bg-black/25 p-3", mode === "compare" && "h-[420px]")}
+                        className={cn("cue-scroll h-[400px] overflow-y-auto rounded-[4px] border border-border/60 bg-black/25 p-3", mode === "compare" && "h-[460px]")}
                       >
                         {renderCues()}
                       </div>
@@ -1623,7 +1611,7 @@ export default function Home() {
         <Card id="sn-glossary" className="mt-5 scroll-mt-24 border-white/10 bg-[#181818]">
           <Collapsible open={glossaryOpen} onOpenChange={setGlossaryOpen}>
             <CollapsibleTrigger asChild>
-              <button type="button" className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
+              <button type="button" className="flex w-full items-center justify-between gap-3 px-6 py-5 text-left">
                 <div className="flex items-center gap-3">
                   <span className="grid size-9 shrink-0 place-items-center rounded-[4px] border border-white/10 bg-black/30 text-primary">
                     <Lock className="size-4" />
@@ -1640,7 +1628,7 @@ export default function Home() {
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="space-y-5 border-t border-border/60 px-5 py-5">
+              <div className="space-y-6 border-t border-border/60 px-6 py-6">
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   Control how character names, fictional items and places survive the AI translation.
                 </p>
@@ -1809,7 +1797,7 @@ export default function Home() {
                 <div className="space-y-3 border-t border-border/60 pt-4">
                   <div>
                     <h3 className="text-xs font-medium">Glossary playground</h3>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Preview protected tokens and restored names without consuming Gemini quota.</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Preview protected tokens and restored names without using translation credits.</p>
                   </div>
                   <Textarea
                     rows={3}
@@ -1879,7 +1867,7 @@ export default function Home() {
               <a href="#top" className="transition-colors hover:text-white">Back to top</a>
             </div>
           </div>
-          <p className="mt-6 text-[10px] uppercase tracking-[0.2em] text-white/25">SubNexa Original · Made for the story</p>
+          <p className="mt-6 text-[10px] tracking-[0.08em] text-white/25">SubNexa Original · Made for the story</p>
         </footer>
       </main>
 
