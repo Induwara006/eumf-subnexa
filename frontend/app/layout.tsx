@@ -4,14 +4,11 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const inter = localFont({
-  variable: "--font-inter",
+const monaSans = localFont({
+  variable: "--font-mona-sans",
   display: "swap",
-  src: [
-    { path: "./fonts/inter-latin-400-normal.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/inter-latin-500-normal.woff2", weight: "500", style: "normal" },
-    { path: "./fonts/inter-latin-600-normal.woff2", weight: "600", style: "normal" },
-  ],
+  weight: "200 900",
+  src: "./fonts/mona-sans-variable.woff2",
 });
 
 const notoSinhala = localFont({
@@ -21,14 +18,14 @@ const notoSinhala = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "SubNexa — English to Sinhala subtitle studio",
+  title: "SubNexa — Every story, in Sinhala",
   description: "Translate SRT subtitles into natural Sinhala. Every timestamp stays untouched.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${inter.variable} ${notoSinhala.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">
+    <html lang="en" className={`dark ${monaSans.variable} ${notoSinhala.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col bg-[#141414]">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster theme="dark" position="bottom-right" />
       </body>

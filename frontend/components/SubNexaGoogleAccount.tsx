@@ -62,6 +62,7 @@ export default function SubNexaGoogleAccount() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void refresh(); }, [refresh]);
 
   async function connect() {
@@ -120,7 +121,7 @@ export default function SubNexaGoogleAccount() {
     <div className="space-y-5">
       {!session?.signed_in ? (
         <div className="space-y-4">
-          <div className="rounded-lg border border-border/70 bg-background/40 p-4">
+          <div className="rounded-[4px] border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
               <ShieldCheck className="size-4 text-primary" />Private translation workspace
             </div>
@@ -136,7 +137,7 @@ export default function SubNexaGoogleAccount() {
         </div>
       ) : (
         <>
-          <div className="flex items-start gap-3 rounded-lg border border-border/70 bg-background/40 p-4">
+          <div className="flex items-start gap-3 rounded-[4px] border border-white/10 bg-white/5 p-4">
             <span className="grid size-10 shrink-0 place-items-center rounded-full border border-primary/30 bg-primary/10 text-sm font-semibold text-primary">
               {(session.name || session.email || "G").slice(0, 1).toUpperCase()}
             </span>
@@ -146,12 +147,12 @@ export default function SubNexaGoogleAccount() {
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Badge
                   variant="outline"
-                  className={cn("h-5 gap-1 border-border/80 px-2 text-[10px] font-normal", connectedTone)}
+                  className={cn("h-5 gap-1 border-white/20 px-2 text-[10px] font-normal", connectedTone)}
                 >
                   <span className={cn("size-1.5 rounded-full", session.connected ? "bg-success" : "bg-warning")} />
                   {session.connected ? "Configured" : "Not configured"}
                 </Badge>
-                <Badge variant="outline" className="h-5 border-border/80 px-2 text-[10px] font-normal text-muted-foreground">
+                <Badge variant="outline" className="h-5 border-white/20 px-2 text-[10px] font-normal text-muted-foreground">
                   {session.provider === "gemini_cloudflare" ? "Gemini + Cloudflare" : session.provider === "cloudflare" ? "Cloudflare" : "Gemini"}
                 </Badge>
               </div>
@@ -192,7 +193,7 @@ export default function SubNexaGoogleAccount() {
                   <CheckCircle2 className="size-3.5" /> Your authorized project is recorded.
                 </p>
                 {session.personal_project_id && <p>
-                  Project: <code className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[11px] text-foreground">{session.personal_project_id}</code>
+                  Project: <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-foreground">{session.personal_project_id}</code>
                 </p>}
                 <p>Remaining Gemini quota: not verified. Limits and billing are managed by Google at project level.</p>
                 <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
@@ -234,7 +235,7 @@ export default function SubNexaGoogleAccount() {
                   <div className="flex items-start gap-2.5">
                     <Checkbox id="subnexa-costs" checked={costs} onCheckedChange={value => setCosts(value === true)} className="mt-0.5" />
                     <Label htmlFor="subnexa-costs" className="text-[11px] font-normal leading-relaxed text-muted-foreground">
-                      I understand my project's usage may count toward quotas or incur charges if billing is enabled.
+                      I understand my project&apos;s usage may count toward quotas or incur charges if billing is enabled.
                     </Label>
                   </div>
                 </div>
