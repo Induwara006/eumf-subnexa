@@ -6,6 +6,8 @@ import {
   AlertCircle,
   ArrowDownToLine,
   ArrowRight,
+  BarChart3,
+  Bell,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -270,6 +272,9 @@ export default function Home() {
   const [playgroundResult, setPlaygroundResult] = useState<GlossaryPreview | null>(null);
   const [playgroundLoading, setPlaygroundLoading] = useState(false);
   const [glossaryReady, setGlossaryReady] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [accountName, setAccountName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
 
   const activityEnd = useRef<HTMLDivElement>(null);
   const previewViewport = useRef<HTMLDivElement>(null);
@@ -312,6 +317,30 @@ export default function Home() {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkSession = async () => {
+      try {
+        const response = await fetch(`${API}/subnexa-auth/session`, { credentials: "include", cache: "no-store" });
+        const data = await response.json();
+        if (cancelled) return;
+        setSignedIn(data.signed_in === true);
+        setAccountName(typeof data.name === "string" ? data.name : "");
+        setAccountEmail(typeof data.email === "string" ? data.email : "");
+      } catch {
+        if (!cancelled) setSignedIn(false);
+      }
+    };
+    void checkSession();
+    window.addEventListener("focus", checkSession);
+    window.addEventListener("subnexa-session-changed", checkSession);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", checkSession);
+      window.removeEventListener("subnexa-session-changed", checkSession);
+    };
   }, []);
 
   useEffect(() => {
@@ -992,8 +1021,37 @@ export default function Home() {
     );
   }
 
+  const firstName = (accountName || "creator").split(/\s+/)[0];
+  const initials = (accountName || accountEmail || "SN")
+    .split(/\s+/)
+    .map(part => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const studioNav = [
+    { href: "#sn-overview", label: "Overview", icon: BarChart3 },
+    { href: "#sn-setup", label: "Upload & settings", icon: Upload },
+    { href: "#sn-translate-action", label: "Translate", icon: Play },
+    { href: "#sn-studio", label: "Subtitles", icon: Film },
+    { href: "#sn-glossary", label: "Glossary", icon: Lock },
+  ];
+  const studioStats = [
+    { label: "Subtitle cues", value: totalCount ? String(totalCount) : "—", hint: sourceCues.length ? "English SRT loaded" : "Waiting for a file", icon: FileText },
+    { label: "Translated", value: `${progress}%`, hint: showProgress ? `${translatedCount} of ${totalCount || "—"} lines` : "Not started", icon: Languages },
+    { label: "Model", value: modelChoice === "subnexa_pro" ? "Pro" : "0.2", hint: "SubNexa AI routing", icon: Sparkles },
+    { label: "Status", value: done ? "Complete" : translating ? "Active" : "Standby", hint: statusTitle, icon: CheckCircle2 },
+  ];
+
   return (
     <div className="relative isolate flex min-h-screen flex-col bg-[#141414]" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
+      {signedIn === null && (
+        <div className="grid min-h-screen flex-1 place-items-center bg-[#141414]">
+          <span className="flex items-center gap-2.5 text-sm text-white/55">
+            <Loader2 className="size-5 animate-spin text-primary" />Preparing your studio…
+          </span>
+        </div>
+      )}
+      {!signedIn && (<>
       <header className={cn(
         "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         scrolled ? "netflix-topbar-scrolled" : "netflix-topbar",
@@ -1002,9 +1060,8 @@ export default function Home() {
           <a href="#top" className="netflix-logo text-2xl sm:text-3xl" aria-label="SubNexa home">SubNexa</a>
           <nav className="hidden items-center gap-5 text-[13px] md:flex" aria-label="Main">
             <a href="#top" className="font-medium text-white transition-colors">Home</a>
-            <a href="#sn-workspace" className="text-white/70 transition-colors hover:text-white">Studio</a>
             <a href="#sn-features" className="text-white/70 transition-colors hover:text-white">How it works</a>
-            <a href="#sn-glossary" className="text-white/70 transition-colors hover:text-white">Glossary</a>
+            <a href={`${API}/subnexa-auth/login`} className="text-white/70 transition-colors hover:text-white">Sign in</a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden items-center gap-2 rounded-[3px] border border-white/15 bg-black/30 px-3 py-1.5 text-[11px] sm:flex">
@@ -1039,7 +1096,7 @@ export default function Home() {
             </div>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Button asChild size="lg" className="h-12 gap-2 px-7 text-base font-bold">
-                <a href="#sn-setup"><Play className="size-5 fill-current" />Start translating</a>
+                <a href={`${API}/subnexa-auth/login`}><Play className="size-5 fill-current" />Sign in to translate</a>
               </Button>
               <Button size="lg" variant="secondary" className="h-12 gap-2 bg-white/15 px-6 text-base text-white hover:bg-white/25" onClick={() => setHelp(true)}>
                 <Info className="size-5" />How it works
@@ -1087,13 +1144,128 @@ export default function Home() {
         </div>
       </section>
 
-      <main id="sn-workspace" className="mx-auto w-full max-w-[1480px] flex-1 scroll-mt-20 px-4 pb-28 pt-16 sm:px-8">
+      <section className="relative z-20 mx-auto w-full max-w-[1480px] px-4 pb-24 pt-6 sm:px-8">
+        <div className="overflow-hidden rounded-[6px] border border-white/10 bg-[#181818] p-7 sm:flex sm:items-center sm:justify-between sm:gap-8 sm:p-10">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">Private studio</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Sign in to open your studio.</h2>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/55">
+              Upload, translate and review Sinhala subtitles in one private workspace. The studio only appears after you sign in.
+            </p>
+          </div>
+          <div className="mt-6 flex shrink-0 flex-wrap gap-3 sm:mt-0">
+            <Button asChild size="lg" className="h-11 gap-2 px-6">
+              <a href={`${API}/subnexa-auth/login`}><Play className="size-4 fill-current" />Sign in with Google</a>
+            </Button>
+            <Button variant="secondary" size="lg" className="h-11 gap-2 bg-white/10 px-6 text-white hover:bg-white/20" onClick={() => setHelp(true)}>
+              <Info className="size-4" />Guide
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <footer className="mx-auto w-full max-w-[1480px] border-t border-white/10 px-4 pb-10 pt-8 sm:px-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <span className="netflix-logo text-lg">SubNexa</span>
+            <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-white/45">
+              Every story, in Sinhala. Timestamps protected, dialogue reviewed by you.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-white/55">
+            <a href="#sn-features" className="transition-colors hover:text-white">How it works</a>
+            <a href={`${API}/subnexa-auth/login`} className="transition-colors hover:text-white">Sign in</a>
+            <button type="button" onClick={() => setHelp(true)} className="transition-colors hover:text-white">Guide</button>
+            <a href="#top" className="transition-colors hover:text-white">Back to top</a>
+          </div>
+        </div>
+        <p className="mt-6 flex flex-wrap items-center justify-between gap-2 text-[10px] tracking-[0.08em] text-white/25">
+          <span>SubNexa Original · Made for the story</span>
+          <span>Design by <a href="https://zagan.space" target="_blank" rel="noreferrer" className="text-white/45 transition-colors hover:text-white">Zagan</a></span>
+        </p>
+      </footer>
+      </>)}
+
+      {signedIn && (<>
+        <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r border-white/10 bg-[#0b0b0b] px-4 py-5 lg:flex">
+          <a href="#sn-overview" className="netflix-logo px-2 text-2xl" aria-label="SubNexa studio">SubNexa</a>
+          <p className="mt-1 px-2 text-[9px] font-semibold uppercase tracking-[0.24em] text-white/30">Studio</p>
+          <nav className="mt-7 flex flex-col gap-0.5" aria-label="Studio">
+            {studioNav.map(item => (
+              <a key={item.href} href={item.href} className="flex items-center gap-3 rounded-[4px] px-2.5 py-2 text-[13px] text-white/60 transition-colors hover:bg-white/5 hover:text-white">
+                <item.icon className="size-4" />{item.label}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-auto rounded-[4px] border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-[9px] uppercase tracking-[0.16em] text-white/35">Signed in</p>
+            <p className="mt-1 truncate text-xs text-white/75">{accountEmail || accountName}</p>
+          </div>
+        </aside>
+
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-[#141414]/95 backdrop-blur lg:ml-64">
+          <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+            <a href="#sn-overview" className="netflix-logo text-xl lg:hidden">SubNexa</a>
+            <div className="hidden min-w-0 sm:block">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">Studio</p>
+              <h1 className="truncate text-sm font-semibold">Welcome back, {firstName}</h1>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="hidden items-center gap-2 rounded-[4px] border border-white/10 bg-white/5 px-3 md:flex">
+                <Search className="size-3.5 text-white/35" />
+                <Input
+                  value={cueSearch}
+                  onChange={event => { setCueSearch(event.target.value); setEditingCue(null); }}
+                  placeholder="Search subtitles"
+                  aria-label="Search subtitles"
+                  className="h-8 w-40 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+                />
+              </div>
+              <Button variant="ghost" size="icon" className="text-white/60 hover:text-white" aria-label="Notifications" onClick={() => setHelp(true)}>
+                <Bell />
+              </Button>
+              <SubNexaAccountDock />
+              <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-bold text-white">{initials}</div>
+            </div>
+          </div>
+          <nav className="flex gap-1 overflow-x-auto border-t border-white/5 px-4 py-2 text-[11px] lg:hidden" aria-label="Studio">
+            {studioNav.map(item => (
+              <a key={item.href} href={item.href} className="shrink-0 rounded-[3px] px-2.5 py-1.5 text-white/55 transition-colors hover:bg-white/5 hover:text-white">{item.label}</a>
+            ))}
+          </nav>
+        </header>
+      </>)}
+
+      {signedIn && (
+      <main id="sn-workspace" className="w-full flex-1 scroll-mt-6 px-4 pb-28 pt-6 sm:px-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:px-8">
+        <div id="sn-overview" className="mb-8 scroll-mt-24">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Overview</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Welcome back, {firstName}</h2>
+            </div>
+            <span className="text-[11px] text-white/45">{statusTitle}</span>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {studioStats.map(stat => (
+              <Card key={stat.label} className="border-white/10 bg-[#181818]">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-xs font-medium text-white/60">{stat.label}</CardTitle>
+                  <stat.icon aria-hidden className="size-4 text-white/35" />
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold tabular-nums">{stat.value}</p>
+                  <p className="mt-1 truncate text-[11px] text-white/40">{stat.hint}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="h-6 w-1 rounded-full bg-primary" />
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Your studio</h2>
-              <Badge variant="outline" className="h-5 border-white/20 px-2 text-[9px] font-semibold tracking-[0.16em] text-white/70">S1:E1</Badge>
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Workspace</h2>
               <Badge className="h-5 bg-primary px-2 text-[9px] font-bold tracking-[0.14em]">{modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
             </div>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -1860,18 +2032,22 @@ export default function Home() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-white/55">
-              <a href="#sn-workspace" className="transition-colors hover:text-white">Studio</a>
-              <a href="#sn-features" className="transition-colors hover:text-white">How it works</a>
+              <a href="#sn-overview" className="transition-colors hover:text-white">Overview</a>
+              <a href="#sn-setup" className="transition-colors hover:text-white">Upload</a>
               <a href="#sn-glossary" className="transition-colors hover:text-white">Glossary</a>
               <button type="button" onClick={() => setHelp(true)} className="transition-colors hover:text-white">Guide</button>
               <a href="#top" className="transition-colors hover:text-white">Back to top</a>
             </div>
           </div>
-          <p className="mt-6 text-[10px] tracking-[0.08em] text-white/25">SubNexa Original · Made for the story</p>
+          <p className="mt-6 flex flex-wrap items-center justify-between gap-2 text-[10px] tracking-[0.08em] text-white/25">
+            <span>SubNexa Original · Made for the story</span>
+            <span>Design by <a href="https://zagan.space" target="_blank" rel="noreferrer" className="text-white/45 transition-colors hover:text-white">Zagan</a></span>
+          </p>
         </footer>
       </main>
+      )}
 
-      {readyDownload && !readyCardVisible && !translating && !isError && (
+      {signedIn && readyDownload && !readyCardVisible && !translating && !isError && (
         <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-[6px] border border-success/30 bg-[#181818] p-3 shadow-2xl sm:bottom-5 sm:left-auto sm:right-5 sm:w-[min(460px,calc(100vw-2.5rem))]">
           <div className="flex min-w-0 items-center gap-2.5">
             <CheckCircle2 className="size-4 shrink-0 text-success" />

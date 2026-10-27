@@ -105,6 +105,7 @@ export default function SubNexaGoogleAccount() {
       });
       if (!response.ok) throw new Error("Could not log out. Please try again.");
       setSession(null);
+      window.dispatchEvent(new Event("subnexa-session-changed"));
       await refresh();
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Could not log out. Please try again.");
