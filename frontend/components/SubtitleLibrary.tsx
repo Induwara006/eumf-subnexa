@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Film, Loader2, Lock, Plus, Search, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+type PosterMatch = { id: number; type: string; title: string; year: string; poster_url: string };
 
 type LibraryItem = {
   id: string | number;
@@ -64,6 +66,78 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
   const [year, setYear] = useState("");
   const [subFile, setSubFile] = useState<File | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [posterLink, setPosterLink] = useState("");
+  const [posterPreview, setPosterPreview] = useState("");
+  const [posterError, setPosterError] = useState("");
+  const [posterBusy, setPosterBusy] = useState(false);
+  const [posterMatches, setPosterMatches] = useState<PosterMatch[]>([]);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchMessage, setSearchMessage] = useState("");
+  const [selectedTitle, setSelectedTitle] = useState("");
+  const posterRequest = useRef<AbortController | null>(null);
+  const posterInput = useRef<HTMLInputElement>(null);
+  const subInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!posterFile) { setPosterPreview(""); return; }
+    const url = URL.createObjectURL(posterFile);
+    setPosterPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [posterFile]);
+  useEffect(() => () => posterRequest.current?.abort(), []);
+  useEffect(() => {
+    setPosterMatches([]); setSearchMessage(""); setSearchBusy(false);
+    if (!unlocked || !ownerOpen || title.trim().length < 2 || title === selectedTitle) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSearchBusy(true);
+      try {
+        const response = await fetch(`/api/library/posters/search?q=${encodeURIComponent(title.trim())}`, {
+          headers: { "X-Library-Admin-Key": ownerKey }, signal: controller.signal, cache: "no-store"
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "Poster search failed.");
+        if (!controller.signal.aborted) {
+          setPosterMatches(data.results || []);
+          if (!data.results?.length) setSearchMessage("No poster matches. Try another title or add an image below.");
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) setSearchMessage(error instanceof Error ? error.message : "Poster search failed.");
+      } finally { if (!controller.signal.aborted) setSearchBusy(false); }
+    }, 600);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [title, ownerKey, unlocked, ownerOpen, selectedTitle]);
+
+  function choosePoster(file: File | null) {
+    if (!file) return;
+    posterRequest.current?.abort(); setPosterBusy(false);
+    if (!["image/jpeg","image/png","image/webp"].includes(file.type)) { setPosterError("Choose a JPG, PNG or WebP image."); return; }
+    if (file.size > 2 * 1024 * 1024) { setPosterError("Poster is larger than 2 MB."); return; }
+    setPosterFile(file); setPosterError("");
+  }
+  async function importPoster(url: string, match?: PosterMatch) {
+    posterRequest.current?.abort();
+    const controller = new AbortController(); posterRequest.current = controller;
+    setPosterBusy(true); setPosterError("");
+    try {
+      const response = await fetch("/api/library/poster/import", { method: "POST",
+        headers: { "Content-Type": "application/json", "X-Library-Admin-Key": ownerKey },
+        body: JSON.stringify({ url }), signal: controller.signal });
+      if (!response.ok) { const data = await response.json(); throw new Error(data.detail || "Image import failed."); }
+      const blob = await response.blob();
+      if (controller.signal.aborted) return;
+      const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+      setPosterFile(new File([blob], `poster.${ext}`, { type: blob.type }));
+      setPosterLink("");
+      if (posterInput.current) posterInput.current.value = "";
+      if (match) { setSelectedTitle(match.title); setTitle(match.title.slice(0,120)); setYear(match.year); setPosterMatches([]); }
+    } catch (error) {
+      if (!controller.signal.aborted) setPosterError(error instanceof Error ? error.message : "Could not import image.");
+    } finally { if (!controller.signal.aborted) setPosterBusy(false); }
+  }
+  function clearPoster() {
+    posterRequest.current?.abort(); setPosterBusy(false); setPosterFile(null); setPosterLink(""); setPosterError("");
+    if (posterInput.current) posterInput.current.value = "";
+  }
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -94,6 +168,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
   }, [query, api, reloadTick]);
 
   function lockArea() {
+    posterRequest.current?.abort(); setPosterBusy(false);
     setUnlocked(false);
     setOwnerKey("");
     setNotice(null);
@@ -120,6 +195,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
   }
 
   async function uploadItem() {
+    if (posterBusy || uploading) return;
     if (!unlocked || !title.trim() || !subFile) {
       setNotice({ ok: false, text: "A title and a subtitle file are required." });
       return;
@@ -146,7 +222,9 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
       setTitle("");
       setYear("");
       setSubFile(null);
-      setPosterFile(null);
+      clearPoster();
+      setSelectedTitle("");
+      if (subInput.current) subInput.current.value = "";
       setReloadTick(n => n + 1);
     } catch (err) {
       setNotice({ ok: false, text: (err as Error).message || "Upload failed." });
@@ -237,6 +315,10 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
         </div>
       )}
 
+      <details className="text-[10px] text-white/45">
+        <summary className="cursor-pointer">Poster credits</summary>
+        <p className="mt-1">This product uses the <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline">TMDB</a> API but is not endorsed or certified by TMDB.</p>
+      </details>
       <div className="border-t border-white/10 pt-3">
         <button
           type="button"
@@ -273,7 +355,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
           <div className="mt-3 grid gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="lib-title" className="text-xs">Title</Label>
-              <Input id="lib-title" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} placeholder="Movie or series name" />
+              <Input id="lib-title" value={title} disabled={uploading || posterBusy} onChange={e => { setTitle(e.target.value); setSelectedTitle(""); }} maxLength={120} placeholder="Movie or series name" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lib-year" className="text-xs">Year (optional)</Label>
@@ -281,18 +363,51 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lib-sub" className="text-xs">Subtitle file (.srt or .ass)</Label>
-              <Input id="lib-sub" type="file" accept=".srt,.ass" onChange={e => setSubFile(e.target.files?.[0] ?? null)} />
+              <Input ref={subInput} disabled={uploading} id="lib-sub" type="file" accept=".srt,.ass" onChange={e => setSubFile(e.target.files?.[0] ?? null)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="lib-poster" className="text-xs">Poster (JPG, PNG or WebP, max 2 MB)</Label>
-              <Input id="lib-poster" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setPosterFile(e.target.files?.[0] ?? null)} />
+            <div className="space-y-3 sm:col-span-2">
+              {searchBusy && <p role="status" className="text-xs text-white/60">Searching movie and TV posters…</p>}
+              {searchMessage && <p role="status" className="text-xs text-white/60">{searchMessage}</p>}
+              {posterMatches.length > 0 && <div>
+                <p className="mb-2 text-xs text-white/65">Choose the correct movie or series to fill its poster and year.</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {posterMatches.map(match => <button type="button" key={`${match.type}-${match.id}`} disabled={posterBusy || uploading}
+                    onClick={() => void importPoster(match.poster_url, match)} className="flex gap-2 rounded-md border border-white/15 p-2 text-left hover:border-primary disabled:opacity-50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={match.poster_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-16 w-11 rounded object-cover" />
+                    <span className="min-w-0 text-xs"><span className="block font-semibold">{match.title}</span><span className="text-white/50">{match.year} · {match.type === "tv" ? "TV" : "Movie"}</span></span>
+                  </button>)}
+                </div>
+              </div>}
+              <div tabIndex={0} aria-label="Poster: drop an image or focus here and paste with Ctrl+V"
+                onDragOver={e => { e.preventDefault(); }}
+                onDrop={e => { e.preventDefault(); if (uploading) return; const file = e.dataTransfer.files[0];
+                  if (file) choosePoster(file); else { const url = e.dataTransfer.getData("text/uri-list").split("\n").find(x => x && !x.startsWith("#")) || e.dataTransfer.getData("text/plain"); if (url) void importPoster(url); } }}
+                onPaste={e => { if (uploading) return; const file = Array.from(e.clipboardData.items).find(x => x.type.startsWith("image/"))?.getAsFile();
+                  if (file) { e.preventDefault(); choosePoster(file); } }}
+                className="rounded-lg border border-dashed border-white/30 p-4 focus:border-primary focus:outline-none">
+                <Label htmlFor="lib-poster" className="text-xs">Poster (JPG, PNG or WebP, max 2 MB)</Label>
+                <p className="my-2 text-xs text-white/55">Drop an image here, click this area and press Ctrl+V, or choose a file.</p>
+                <Input ref={posterInput} disabled={uploading} id="lib-poster" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => choosePoster(e.target.files?.[0] ?? null)} />
+                <div className="mt-3 flex gap-2">
+                  <Input aria-label="Direct image link" disabled={uploading || posterBusy} value={posterLink} onChange={e => setPosterLink(e.target.value)} placeholder="https://… direct image link" />
+                  <Button type="button" variant="outline" disabled={!posterLink.trim() || posterBusy || uploading} onClick={() => void importPoster(posterLink.trim())}>Use link</Button>
+                </div>
+                {posterBusy && <p role="status" className="mt-2 text-xs text-white/60">Loading poster…</p>}
+                {posterError && <p role="alert" className="mt-2 text-xs text-red-400">{posterError}</p>}
+                {posterPreview && <div className="mt-3 flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={posterPreview} alt="Selected poster preview" className="h-36 w-24 rounded object-cover" />
+                  <div><p className="mb-2 text-xs text-white/60">Poster ready to upload</p><Button type="button" variant="outline" size="sm" disabled={uploading} onClick={clearPoster}>Remove poster</Button></div>
+                </div>}
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-              <Button onClick={uploadItem} disabled={uploading} className="gap-2">
+              <Button onClick={uploadItem} disabled={uploading || posterBusy} className="gap-2">
                 {uploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}Add to library
               </Button>
               {notice ? <span className={notice.ok ? "text-xs text-green-400" : "text-xs text-red-400"}>{notice.text}</span> : null}
-              <Button variant="ghost" size="sm" onClick={lockArea} className="ml-auto gap-1.5 text-xs text-white/60 hover:text-white">
+              <Button variant="ghost" size="sm" onClick={lockArea} disabled={uploading} className="ml-auto gap-1.5 text-xs text-white/60 hover:text-white">
                 <Lock className="size-3.5" />Lock
               </Button>
             </div>

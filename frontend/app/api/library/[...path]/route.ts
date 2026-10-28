@@ -1,3 +1,4 @@
+import { fetchPoster } from "./poster-source";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -131,6 +132,37 @@ async function handle(request: Request, context: Context) {
   try {
     const { path } = await context.params;
     const route = path.join("/");
+    if (request.method === "POST" && route === "poster/import") {
+      await admin(request);
+      if (Number(request.headers.get("content-length") || 0) > 4096) throw new HttpError(413, "Image link request is too large.");
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body.url !== "string") throw new HttpError(400, "Enter an image link.");
+      let bytes: Buffer;
+      try { bytes = await fetchPoster(body.url.trim()); }
+      catch (error) { throw new HttpError(400, error instanceof Error ? error.message : "Could not import poster."); }
+      const kind = posterType(bytes);
+      if (!kind) throw new HttpError(400, "Link must point to a JPG, PNG or WebP image, not a webpage.");
+      return new Response(new Uint8Array(bytes), { headers: { "Content-Type": kind === "jpg" ? "image/jpeg" : `image/${kind}`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+    }
+    if (request.method === "GET" && route === "posters/search") {
+      await admin(request);
+      const q = (new URL(request.url).searchParams.get("q") || "").trim();
+      if (q.length < 2 || q.length > 120) throw new HttpError(400, "Enter 2–120 characters to search.");
+      const token = process.env.TMDB_READ_ACCESS_TOKEN;
+      if (!token) throw new HttpError(503, "Poster search is not configured. You can still choose, paste or drop an image.");
+      const response = await fetch(`https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(q)}&include_adult=false&language=en-US&page=1`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal: AbortSignal.timeout(10000), cache: "no-store"
+      });
+      if (!response.ok) throw new HttpError(503, "Poster search is temporarily unavailable. Check the server TMDB token.");
+      type Match = { id: number; media_type: string; title?: string; name?: string; poster_path?: string; release_date?: string; first_air_date?: string };
+      const data = await response.json() as { results?: Match[] };
+      const results = (data.results || []).filter(x => ["movie","tv"].includes(x.media_type) && /^\/[a-zA-Z0-9]+\.(jpg|png)$/.test(x.poster_path || "")).slice(0,8).map(x => ({
+        id: x.id, type: x.media_type, title: x.title || x.name || "Untitled",
+        year: (x.release_date || x.first_air_date || "").slice(0,4),
+        poster_url: `https://image.tmdb.org/t/p/w500${x.poster_path}`
+      }));
+      return json({ results });
+    }
     if (request.method === "POST" && route === "admin/check") { await admin(request); return json({ ok: true }); }
     if (route === "items" && request.method === "POST") return await createItem(request);
     if (route === "items" && request.method === "GET") {
