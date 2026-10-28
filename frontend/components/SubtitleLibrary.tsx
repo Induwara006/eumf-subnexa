@@ -20,6 +20,7 @@ type LibraryItem = {
   downloads: number;
   poster_url: string | null;
   download_url: string;
+  translated_by?: string | null;
 };
 
 function Poster({ item, api }: { item: LibraryItem; api: string }) {
@@ -54,6 +55,11 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
+  useEffect(() => {
+    const refresh = () => setReloadTick(tick => tick + 1);
+    window.addEventListener("subnexa-library-updated", refresh);
+    return () => window.removeEventListener("subnexa-library-updated", refresh);
+  }, []);
 
   // Restricted area (upload / delete). The password is kept only in memory and is
   // checked by the server before any upload tools are shown.
@@ -296,6 +302,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
                     {[item.year, item.language].filter(Boolean).join(" · ")}
                     {item.downloads > 0 ? ` · ${item.downloads} downloads` : ""}
                   </p>
+                  {item.translated_by && <p className="truncate text-[11px] text-white/70" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
                 </div>
                 <div className="mt-auto flex items-center gap-2">
                   <Button asChild size="sm" className="h-8 flex-1 gap-1.5 text-xs">

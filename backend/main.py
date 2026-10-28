@@ -377,6 +377,18 @@ async def subnexa_models():
                         headers={"Cache-Control": "no-store"})
 
 
+@app.get("/quota")
+async def quota_status(request: Request):
+    from subnexa_auth import _user
+    from subnexa_quota import snapshot
+    from translator import MODEL
+    from fastapi.responses import JSONResponse
+    if not _user(request):  # Same signed-cookie check as translation controls.
+        raise HTTPException(status_code=401, detail="Sign in to view quota")
+    data = await asyncio.to_thread(snapshot, MODEL)
+    return JSONResponse(data, headers={"Cache-Control": "no-store"})
+
+
 # SubNexa V5.0 local single-process cooperative job controls.
 # Multi-worker deployments need shared durable coordination and authenticated ownership.
 import secrets
@@ -438,6 +450,7 @@ async def control_translation(request: TranslationControlRequest, http_request: 
 
 @app.post("/translate-srt-stream")
 async def translate_srt_stream(
+    http_request: Request,
     file: UploadFile = File(...),
     style: str = Form("natural"),
     glossary: str = Form("[]"),
@@ -445,12 +458,18 @@ async def translate_srt_stream(
     opening_credit: bool = Form(False),
     model_choice: str = Form("subnexa_02")
 ):
+    from subnexa_auth import _user
+    signed_profile = _user(http_request)
+    # Capture only verified identity needed by the detached producer; never take
+    # author name/id from a form field or a frontend session JSON response.
+    library_user = {"sub": signed_profile["sub"], "name": signed_profile.get("name", "")}
     # SubNexa V4.7: model choice is validated on the server, not trusted from UI.
     from subnexa_model_router import availability, VALID_MODES
     if model_choice not in VALID_MODES:
         raise HTTPException(status_code=400, detail="Unknown SubNexa AI model")
     if not availability()[model_choice]:
         raise HTTPException(status_code=503, detail=(
+            "SubNexa 1.1 is not configured yet" if model_choice == "subnexa_11" else
             "SubNexa Pro (Gemini) is not configured yet" if model_choice == "subnexa_pro"
             else "SubNexa 0.2 (Cloudflare) is not configured yet"))
     # Validate file
@@ -509,14 +528,20 @@ async def translate_srt_stream(
 
 
 
+    vps_cache = ""
+    if model_choice == "subnexa_11":
+        from subnexa_vps import cache_fingerprint
+        vps_cache = ":" + cache_fingerprint()
     job_id = get_job_id(content, style, pipeline_version=(
-        GLOSSARY_PIPELINE_VERSION + ":" + glossary_fingerprint(glossary_rules) + ":model:" + model_choice
+        GLOSSARY_PIPELINE_VERSION + ":" + glossary_fingerprint(glossary_rules) + ":model:" + model_choice + vps_cache
     ))
 
     # Issue a unique token per active browser stream. Never use a guessed/cached job ID
     # as authority for interruption. Block duplicate active streams for the same cache.
     from subnexa_auth import current_user_sub
     owner = current_user_sub()
+    if owner != library_user["sub"]:
+        raise HTTPException(status_code=401, detail="Translation session mismatch")
     for rec in _ACTIVE_TRANSLATIONS.values():
         if rec["job_id"] != job_id:
             continue
@@ -591,29 +616,50 @@ async def translate_srt_stream(
         from subnexa_model_router import selected_mode
         from subnexa_cf_normal_v48 import select_cloudflare_batch
         cf_normal = selected_mode() == "subnexa_02"
+        vps_mode = selected_mode() == "subnexa_11"
+        from subnexa_vps import select_batch as select_vps_batch
         remaining = [i for i in range(total) if str(i) not in saved]
         planner = AdaptiveBatchPlanner()
         deferred = set()
         final_repair_pass = False
+        planned_batches = 0
+        pro_mode = selected_mode() == "subnexa_pro"
+        if pro_mode:
+            from subnexa_usage import snapshot
+            yield event("activity", stage="gemini_usage", count=await asyncio.to_thread(snapshot))
+            from subnexa_quota import snapshot as quota_snapshot
+            from translator import MODEL
+            yield event("activity", stage="quota", count=await asyncio.to_thread(quota_snapshot, MODEL))
         while remaining:
             if control_record["action"]:
                 save_progress(job_id, saved)
                 yield interruption_event()
                 return
-            indexes = (select_cloudflare_batch(remaining, originals) if cf_normal
+            if pro_mode and total > 100 and planned_batches and planned_batches % 5 == 0:
+                for seconds in range(30, 0, -1):
+                    if control_record["action"]:
+                        save_progress(job_id, saved)
+                        yield interruption_event()
+                        return
+                    yield event("activity", stage="batch_cooldown", count=seconds)
+                    await asyncio.sleep(1)
+                yield event("activity", stage="batch_cooldown", count=0)
+            planned_batches += 1
+            indexes = (select_vps_batch(remaining, originals) if vps_mode else
+                       select_cloudflare_batch(remaining, originals) if cf_normal
                        else planner.select(remaining, originals))
             remaining = remaining[len(indexes):]
             queue = [indexes]
             had_split = False
             print(f"[SubNexa] adaptive batch: {len(indexes)} entries "
-                  f"(target={1000 if cf_normal else planner.target_lines}, "
+                  f"(target={5 if vps_mode else 1000 if cf_normal else planner.target_lines}, "
                   f"english_chars={sum(len(originals[i]) for i in indexes)})",
                   flush=True)
             # Existing frontend ignores unknown stages, but the normal
             # translation/review/progress events still render as before.
             yield event("activity", stage="batch_planned", count=len(indexes),
                         start=indexes[0] + 1, end=indexes[-1] + 1,
-                        target=(1000 if cf_normal else planner.target_lines))
+                        target=(5 if vps_mode else 1000 if cf_normal else planner.target_lines))
 
             while queue:
                 if control_record["action"]:
@@ -634,8 +680,11 @@ async def translate_srt_stream(
                             # Forward actual model-stage callbacks immediately as SSE.
                             stage_queue = asyncio.Queue()
 
+                            stage_loop = asyncio.get_running_loop()
                             def on_stage(stage, count):
-                                stage_queue.put_nowait((stage, count))
+                                if control_record["action"] and stage == "rate_wait":
+                                    raise RuntimeError("Translation control requested")
+                                stage_loop.call_soon_threadsafe(stage_queue.put_nowait, (stage, count))
 
                             worker = asyncio.create_task(
                                 translate_batch_to_sinhala(
@@ -723,7 +772,7 @@ async def translate_srt_stream(
                         # The good entries will never be retranslated.
                         queue = [[i] for i in unresolved] + queue
                         continue
-                    if unresolved and not hard_failure and selected_mode() == "subnexa_pro":
+                    if unresolved and not hard_failure and selected_mode() in ("subnexa_pro", "subnexa_11"):
                         deferred.update(unresolved)
                         print(f"[SubNexa] deferred subtitle(s) "
                               f"{[i + 1 for i in unresolved]}; continuing pending work",
@@ -807,10 +856,23 @@ async def translate_srt_stream(
         if opening_credit:
             yield event("activity", stage="credit_added" if credit_added
                         else "credit_skipped")
+        yield event("activity", stage="library_saving", count=total)
+        try:
+            from subnexa_library_auto import publish_completed
+            library_status = await asyncio.to_thread(
+                publish_completed, user=library_user, job_id=job_id,
+                original_filename=file.filename, content=rendered,
+                output_format=output_format, opening_credit=opening_credit,
+                completed=len(saved), total=total
+            )
+        except Exception as error:
+            print(f"[SubNexa Library] publication failed: {type(error).__name__}", flush=True)
+            library_status = {"saved": False, "reason": "library_unavailable"}
+        yield event("activity", stage="library_saved" if library_status.get("saved") else "library_failed", count=total)
         yield event("activity", stage="done", count=total)
         # Include legacy 'srt' field only for SRT clients that expect it.
         data = {"content": rendered, "format": output_format,
-                "opening_credit_added": credit_added}
+                "opening_credit_added": credit_added, "library": library_status}
         if output_format == "srt":
             data["srt"] = rendered
         yield event("complete", **data)

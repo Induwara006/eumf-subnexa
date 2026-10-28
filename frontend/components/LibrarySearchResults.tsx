@@ -11,6 +11,7 @@ type Item = {
   format: string;
   poster_url: string | null;
   download_url: string;
+  translated_by?: string | null;
 };
 
 type Props = {
@@ -133,6 +134,7 @@ export default function LibrarySearchResults({ query, api: translationApi, onBro
                   <p className="text-[11px] text-white/50">
                     {[item.year, item.language, item.format.toUpperCase()].filter(Boolean).join(" · ")}
                   </p>
+                  {item.translated_by && <p className="truncate text-[10px] text-white/60" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
                 </div>
                 <a
                   href={`${api}${item.download_url}`}

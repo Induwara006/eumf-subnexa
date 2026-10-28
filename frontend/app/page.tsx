@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { UNIVERSE_PRESETS, PREVIOUS_UNIVERSE_PRESETS } from "./universe-presets";
+import { CUSTOM, initialGroups, activeRules, toggleGroup, deleteRule, saveCustom, upgradeCatalog, type Groups } from "./glossary-groups";
 import type { CSSProperties } from "react";
 import {
   AlertCircle,
@@ -94,11 +96,7 @@ type GlossaryPreview = {
 };
 
 const GLOSSARY_PRESETS: Record<string, GlossaryRule[]> = {
-  "Sci-Fi / Marvel": [
-    { source: "Tony Stark", target: "ටෝනි ස්ටාර්ක්", mode: "custom_translation", case_sensitive: false },
-    { source: "Arc Reactor", target: "", mode: "never_translate", case_sensitive: false },
-    { source: "Wakanda", target: "වකන්ඩා", mode: "custom_translation", case_sensitive: false },
-  ],
+  ...UNIVERSE_PRESETS,
   "Anime": [
     { source: "Naruto", target: "නරුටෝ", mode: "custom_translation", case_sensitive: false },
     { source: "senpai", target: "", mode: "never_translate", case_sensitive: false },
@@ -229,8 +227,8 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [style, setStyle] = useState("natural");
   // SubNexa V4.7 MODEL SELECTOR: choose Cloudflare or Gemini per translation.
-  const [modelChoice, setModelChoice] = useState<"subnexa_02" | "subnexa_pro">("subnexa_02");
-  const [modelAvailability, setModelAvailability] = useState<{ subnexa_02: boolean; subnexa_pro: boolean } | null>(null);
+  const [modelChoice, setModelChoice] = useState<"subnexa_02" | "subnexa_pro" | "subnexa_11">("subnexa_02");
+  const [modelAvailability, setModelAvailability] = useState<{ subnexa_02: boolean; subnexa_pro: boolean; subnexa_11: boolean } | null>(null);
   const [modelStatusError, setModelStatusError] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +242,7 @@ export default function Home() {
         setModelAvailability({
           subnexa_02: data?.available?.subnexa_02 === true,
           subnexa_pro: data?.available?.subnexa_pro === true,
+          subnexa_11: data?.available?.subnexa_11 === true,
         });
         setModelStatusError(false);
       })
@@ -268,10 +267,34 @@ export default function Home() {
   const [translatedCount, setTranslatedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+  const [quota, setQuota] = useState<{ available: boolean; remaining?: number | null; remaining_percent?: number | null; daily_limit?: number; requests_used?: number; reset_at?: string; projects?: number } | null>(null);
+  useEffect(() => {
+    if (modelChoice !== "subnexa_pro") return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    async function refreshQuota() {
+      try {
+        const response = await fetch(`${API}/quota`, { credentials: "include", cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Quota unavailable");
+        const data = await response.json();
+        if (!stopped) setQuota(data);
+      } catch {
+        if (!stopped) setQuota({ available: false });
+      } finally {
+        if (!stopped) timer = setTimeout(() => void refreshQuota(), 30000);
+      }
+    }
+    void refreshQuota();
+    return () => { stopped = true; controller.abort(); if (timer) clearTimeout(timer); };
+  }, [modelChoice]);
+  const [geminiUsage, setGeminiUsage] = useState<{ available: boolean; used?: number; remaining?: number | null; missing?: number; incomplete?: boolean; pending?: number } | null>(null);
   const etaSample = useRef<{ started: number; baseline: number; last: number; updates: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [activity, setActivity] = useState<Activity[]>([]);
-  const [glossaryRules, setGlossaryRules] = useState<GlossaryRule[]>([]);
+  const [glossaryGroups, setGlossaryGroups] = useState<Groups>(() => initialGroups(GLOSSARY_PRESETS));
+  const glossaryRules = useMemo(() => activeRules(glossaryGroups), [glossaryGroups]);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [glossaryDraft, setGlossaryDraft] = useState<GlossaryRule>({
     source: "", target: "", mode: "never_translate", case_sensitive: false,
@@ -287,6 +310,7 @@ export default function Home() {
   const [accountEmail, setAccountEmail] = useState("");
 
   const activityEnd = useRef<HTMLDivElement>(null);
+  const activityFollow = useRef(true);
   const previewViewport = useRef<HTMLDivElement>(null);
   const readyCardRef = useRef<HTMLDivElement>(null);
   const nextActivityId = useRef(0);
@@ -299,16 +323,51 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("subnexa-glossary-v1");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved) setGlossaryRules(validateGlossaryRules(JSON.parse(saved)));
-    } catch { /* Invalid saved glossary is ignored, never submitted to backend. */ }
+      const saved = localStorage.getItem("subnexa-glossary-groups-v2");
+      if (saved) {
+        const value = JSON.parse(saved);
+        if (!value || !value.groups || !Array.isArray(value.enabled)) throw new Error("Invalid groups");
+        let next = initialGroups(GLOSSARY_PRESETS);
+        for (const name of Object.keys(next.groups)) {
+          if (Object.prototype.hasOwnProperty.call(value.groups, name)) next.groups[name] = validateGlossaryRules(value.groups[name]);
+        }
+        next.enabled = value.enabled.filter((name: unknown): name is string => typeof name === "string" && Object.prototype.hasOwnProperty.call(next.groups, name));
+        next.catalogVersion = typeof value.catalogVersion === "number" ? value.catalogVersion : 0;
+        next = upgradeCatalog(next, PREVIOUS_UNIVERSE_PRESETS, UNIVERSE_PRESETS);
+        // Existing API accepts 200 active terms. Keep Custom rules enabled first.
+        const wanted = [...new Set([CUSTOM, ...next.enabled])].filter(name => next.enabled.includes(name));
+        const enabled: string[] = [];
+        const disabled: string[] = [];
+        for (const name of wanted) {
+          if (activeRules({...next, enabled: [...enabled, name]}).length <= 200) enabled.push(name);
+          else disabled.push(name);
+        }
+        next.enabled = enabled;
+        validateGlossaryRules(activeRules(next));
+        if (disabled.length) setGlossaryNotice(`Expanded presets exceed 200 active terms. Turn on one universe at a time. Disabled: ${disabled.join(", ")}. Saved rules are retained.`);
+        setGlossaryGroups(next);
+      } else {
+        const legacy = localStorage.getItem("subnexa-glossary-v1");
+        if (legacy) setGlossaryGroups(initialGroups(GLOSSARY_PRESETS, validateGlossaryRules(JSON.parse(legacy))));
+      }
+    } catch { /* Invalid storage is not submitted to backend. */ }
     setGlossaryReady(true);
   }, []);
 
   useEffect(() => {
-    if (glossaryReady) localStorage.setItem("subnexa-glossary-v1", JSON.stringify(glossaryRules));
-  }, [glossaryRules, glossaryReady]);
+    if (!glossaryReady) return;
+    try { localStorage.setItem("subnexa-glossary-groups-v2", JSON.stringify(glossaryGroups)); }
+    catch { setGlossaryNotice("Rules work for this session, but browser storage could not save them."); }
+  }, [glossaryGroups, glossaryReady]);
+
+  function applyGlossaryGroups(next: Groups, notice: string) {
+    validateGlossaryRules(activeRules(next));
+    setGlossaryGroups(next);
+    setEditingRule(null);
+    setPlaygroundResult(null);
+    resetTranslationResult();
+    setGlossaryNotice(notice);
+  }
 
   useEffect(() => {
     try {
@@ -377,7 +436,9 @@ export default function Home() {
       const next = [...glossaryRules];
       if (editingRule === null) next.push(glossaryDraft);
       else next[editingRule] = glossaryDraft;
-      setGlossaryRules(validateGlossaryRules(next));
+      const validated = validateGlossaryRules(next);
+      const rule = validated[editingRule === null ? validated.length - 1 : editingRule];
+      applyGlossaryGroups(saveCustom(glossaryGroups, rule, editingRule === null ? undefined : glossaryRules[editingRule].source), "Custom rule saved and enabled.");
       setGlossaryDraft({ source: "", target: "", mode: "never_translate", case_sensitive: false });
       setEditingRule(null);
       setPlaygroundResult(null);
@@ -402,7 +463,8 @@ export default function Home() {
                    case_sensitive: get("case_sensitive").toLowerCase() === "true" };
         });
       } else imported = JSON.parse(content);
-      setGlossaryRules(validateGlossaryRules(imported));
+      const importedRules = validateGlossaryRules(imported);
+      applyGlossaryGroups({...glossaryGroups, groups: {...glossaryGroups.groups, [CUSTOM]: importedRules}, enabled: [...new Set([...glossaryGroups.enabled, CUSTOM])]}, "Custom rules imported.");
       setPlaygroundResult(null);
       setGlossaryNotice(`Imported ${Array.isArray(imported) ? imported.length : 0} glossary rules.`);
     } catch (err) { setGlossaryNotice(err instanceof Error ? err.message : "Cannot import glossary."); }
@@ -441,7 +503,7 @@ export default function Home() {
 
   useEffect(() => {
     const log = activityEnd.current?.parentElement;
-    if (log) log.scrollTop = log.scrollHeight;
+    if (log && activityFollow.current) log.scrollTop = log.scrollHeight;
   }, [activity]);
 
   function notify(text: string, error = false) {
@@ -518,6 +580,7 @@ export default function Home() {
     setTranslatedCount(0);
     setTotalCount(0);
     setResuming(false);
+    activityFollow.current = true;
     setActivity([]);
   }
 
@@ -601,7 +664,7 @@ export default function Home() {
       if (!modelsReply.ok) throw new Error("Model availability endpoint unavailable");
       const models = await modelsReply.json();
       if (models?.available?.[modelChoice] !== true) {
-        notify(modelChoice === "subnexa_pro"
+        notify(modelChoice === "subnexa_11" ? "SubNexa 1.1 is unavailable right now. No translation request was sent." : modelChoice === "subnexa_pro"
           ? "SubNexa Pro is unavailable right now. No translation request was sent."
           : "SubNexa 0.2 is unavailable right now. No translation request was sent.", true);
         return;
@@ -624,10 +687,13 @@ export default function Home() {
     etaSample.current = null;
     setEtaSeconds(null);
     setTranslating(true);
+    setCooldown(0);
+    setGeminiUsage(null);
     if (!isResume) setProgress(0);
     setResuming(false);
     if (!isResume) setTranslatedCount(0);
     if (!isResume) setTotalCount(0);
+    activityFollow.current = true;
     setActivity([]);
     logActivity(isResume ? "Reconnecting to saved translation" : "Starting translation", "Connecting to SubNexa AI...");
     notify(isResume ? "User requested to resume translation. Connecting to saved progress…" : "Starting translation...");
@@ -683,6 +749,25 @@ export default function Home() {
           const count = typeof data.count === "number" ? data.count : 0;
           const range = data.start && data.end ? `#${data.start}–#${data.end}` : "";
           switch (data.stage) {
+            case "library_saving":
+              logActivity("Saving to subtitle library", "Publishing the complete translation with your display name.");
+              break;
+            case "library_saved":
+              logActivity("Saved to subtitle library", "Your translation is available in the library.", "success");
+              break;
+            case "library_failed":
+              logActivity("Library auto-save unavailable", "Your translated file is still available to download.", "warn");
+              break;
+            case "quota":
+              if (data.count && typeof data.count === "object") setQuota(data.count);
+              break;
+            case "rate_wait":
+            case "batch_cooldown":
+              setCooldown(count);
+              break;
+            case "gemini_usage":
+              if (data.count && typeof data.count === "object") setGeminiUsage(data.count);
+              break;
             case "glossary":
               logActivity("Glossary protection enabled", `${count} rules loaded`, "success");
               break;
@@ -818,7 +903,14 @@ export default function Home() {
           setReadyDownload({ content, originalContent: content, filename, format: finalFormat,
                              creditAdded: data.opening_credit_added === true,
                              creditRequested: openingCredit });
-          notify("Your file is ready! Click Download to save it.");
+          if (data.library?.saved === true) {
+            window.dispatchEvent(new Event("subnexa-library-updated"));
+            notify("Your file is ready and saved to the subtitle library.");
+          } else if (data.library?.saved === false) {
+            notify("Your file is ready. Library auto-save failed; download is still available.");
+          } else {
+            notify("Your file is ready! Click Download to save it.");
+          }
         }
 
         if (data.type === "error") {
@@ -892,6 +984,7 @@ export default function Home() {
     : isError ? "Translation interrupted" : "Ready to translate";
 
   const sourceCues = useMemo(() => parseStudioCues(sourceText || preview, "srt"), [sourceText, preview]);
+  const estimatedFileRequests = sourceCues.length > 0 ? Math.ceil(Math.ceil(sourceCues.length / 30) * 2 * 1.1) : null;
   const translatedCues = useMemo(() => parseStudioCues(readyDownload?.content || "", readyDownload?.format || "srt"), [readyDownload]);
   const cues = tab === "source" ? sourceCues : translatedCues;
   const sourceMatches = useMemo(() => {
@@ -1077,7 +1170,7 @@ export default function Home() {
   const studioStats = [
     { label: "Subtitle cues", value: totalCount ? String(totalCount) : "—", hint: sourceCues.length ? "English SRT loaded" : "Waiting for a file", icon: Captions },
     { label: "Translated", value: `${progress}%`, hint: showProgress ? `${translatedCount} of ${totalCount || "—"} lines` : "Not started", icon: Languages },
-    { label: "Model", value: modelChoice === "subnexa_pro" ? "Pro" : "0.2", hint: "SubNexa AI routing", icon: Cpu },
+    { label: "Model", value: modelChoice === "subnexa_11" ? "1.1" : modelChoice === "subnexa_pro" ? "Pro" : "0.2", hint: "SubNexa AI routing", icon: Cpu },
     { label: "Status", value: done ? "Complete" : translating ? "Active" : "Standby", hint: statusTitle, icon: CheckCircle2 },
   ];
 
@@ -1323,7 +1416,7 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="h-6 w-1 rounded-full bg-primary" />
               <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Workspace</h2>
-              <Badge className="h-5 bg-primary px-2 text-[9px] font-bold tracking-[0.14em]">{modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
+              <Badge className="h-5 bg-primary px-2 text-[9px] font-bold tracking-[0.14em]">{modelChoice === "subnexa_11" ? "1.1" : modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
             </div>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
               Upload, translate and review your next episode. Nothing downloads until you say so.
@@ -1451,14 +1544,15 @@ export default function Home() {
                 <div className="space-y-2.5">
                   <Label className="text-xs text-muted-foreground">Choose your AI model</Label>
                   <RadioGroup value={modelChoice}
-                    onValueChange={value => { setModelChoice(value as "subnexa_02" | "subnexa_pro"); resetTranslationResult(); }}
-                    disabled={loading} className="grid gap-2 sm:grid-cols-2">
+                    onValueChange={value => { setModelChoice(value as "subnexa_02" | "subnexa_pro" | "subnexa_11"); resetTranslationResult(); }}
+                    disabled={loading} className="grid gap-2 sm:grid-cols-3">
                     {([
                       { id: "subnexa_02" as const, title: "SubNexa 0.2", provider: "", tier: "Normal Translation", usage: "Low Credit Usage" },
                       { id: "subnexa_pro" as const, title: "SubNexa Pro", provider: "", tier: "Premium Translation", usage: "High Credit Usage" },
+                      { id: "subnexa_11" as const, title: "SubNexa 1.1", provider: "", tier: "Standard Translation", usage: "No Credit Usage" },
                     ]).map(option => {
                       const active = modelChoice === option.id;
-                      const unavailable = modelAvailability?.[option.id] === false;
+                      const unavailable = option.id === "subnexa_11" ? modelAvailability?.subnexa_11 !== true : modelAvailability?.[option.id] === false;
                       return (
                         <Label key={option.id} htmlFor={`ai-model-${option.id}`}
                           className={cn("flex min-h-36 cursor-pointer flex-col gap-2.5 rounded-[4px] border border-white/10 bg-black/30 p-4 transition-colors hover:border-primary/40",
@@ -1470,7 +1564,7 @@ export default function Home() {
                           </div>
                           <span className="text-xs font-medium">{option.tier}</span>
                           <span className="text-[11px] text-muted-foreground">{option.usage}</span>
-                          {unavailable && <span className="text-[11px] text-warning">Currently unavailable</span>}
+                          {unavailable && <span className="text-[11px] text-warning">{option.id === "subnexa_11" ? "Coming soon" : "Currently unavailable"}</span>}
                         </Label>
                       );
                     })}
@@ -1570,6 +1664,7 @@ export default function Home() {
                   <p className="text-center text-[11px] text-muted-foreground">
                     {!file ? "Choose a file to begin." : `${glossaryRules.length} glossary rule(s) active · Timings protected`}
                   </p>
+                  <p className="text-center text-[11px] text-muted-foreground">Completed translations are automatically added to the public subtitle library with your signed-in display name.</p>
                   {message && (
                     <Alert
                       variant={isError ? "destructive" : "default"}
@@ -1618,6 +1713,21 @@ export default function Home() {
                   <span className="font-mono text-2xl leading-none text-foreground">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-1.5" aria-label="Translation progress" />
+                {modelChoice === "subnexa_pro" && translating && cooldown > 0 && (
+                  <p className="text-xs text-amber-400" role="status">Rate-limit cooldown: {cooldown}s — translation continues automatically.</p>
+                )}
+                {modelChoice === "subnexa_pro" && (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Tracked tokens today: {geminiUsage?.available ? (geminiUsage.used ?? 0).toLocaleString() : "Unavailable"}</p>
+                    <p>Estimated daily requests remaining: {quota?.available && quota.remaining != null ? `${quota.remaining.toLocaleString()} / ${(quota.daily_limit ?? 0).toLocaleString()}` : "Unavailable — check quota setup"}</p>
+                    <Progress value={quota?.available ? quota.remaining_percent ?? 0 : 0} className="h-1.5" aria-label="Estimated daily requests remaining" />
+                    <p>Tracked request attempts today: {quota?.available ? (quota.requests_used ?? 0).toLocaleString() : "Unavailable"}</p>
+                    {quota?.available && quota.reset_at && <p>Daily reset: {new Date(quota.reset_at).toLocaleString("en-GB", { timeZone: "Asia/Colombo", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })} (Sri Lanka)</p>}
+                    {estimatedFileRequests !== null && <p>This file: roughly {estimatedFileRequests} requests including review and a 10% repair allowance. {quota?.available && quota.remaining != null ? `About ${Math.floor(quota.remaining / estimatedFileRequests)} files of this size remaining.` : ""} Actual usage may be higher.</p>}
+                    <p>Estimate from this site's tracked attempts since setup; earlier and external usage may reduce availability.</p>
+                    <p>Saved in Supabase · Site-tracked usage only; not Google's live quota. {geminiUsage?.missing ? "Some response usage is missing." : ""} {geminiUsage?.pending ? "Usage sync pending." : ""}</p>
+                  </div>
+                )}
                 {translating && !interruption && !isError && (
                   <p className="mt-2 text-xs text-muted-foreground" role="status">
                     {controlPending
@@ -1660,7 +1770,27 @@ export default function Home() {
                     <span>Live activity</span>
                     <span className="normal-case tracking-normal">{activity.length ? `${activity.length} events` : "Waiting for your file"}</span>
                   </div>
-                  <div className="cue-scroll max-h-44 space-y-3 overflow-y-auto pr-1" role="log" aria-live="polite" aria-relevant="additions">
+                  <style jsx global>{`
+                    .subnexa-activity-scroll, .subnexa-editor-scroll {
+                      overflow-y: scroll !important;
+                      scrollbar-width: auto !important;
+                      scrollbar-color: #9ca3af #262626 !important;
+                      scrollbar-gutter: stable;
+                    }
+                    .subnexa-activity-scroll::-webkit-scrollbar , .subnexa-editor-scroll::-webkit-scrollbar {
+                      display: block !important;
+                      width: 10px !important;
+                    }
+                    .subnexa-activity-scroll::-webkit-scrollbar-track , .subnexa-editor-scroll::-webkit-scrollbar-track { background: #262626 !important; border-radius: 6px; }
+                    .subnexa-activity-scroll::-webkit-scrollbar-thumb , .subnexa-editor-scroll::-webkit-scrollbar-thumb { background: #9ca3af !important; border: 2px solid #262626; border-radius: 6px; }
+                    .subnexa-activity-scroll::-webkit-scrollbar-thumb:hover , .subnexa-editor-scroll::-webkit-scrollbar-thumb:hover { background: #e5e7eb !important; }
+                  `}</style>
+                  <div className="subnexa-activity-scroll max-h-44 space-y-3 pr-3" style={{ maxHeight: 176 }}
+                    tabIndex={0} aria-label="Live activity history" role="log" aria-live="polite" aria-relevant="additions"
+                    onScroll={event => {
+                      const log = event.currentTarget;
+                      activityFollow.current = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
+                    }}>
                     {activity.length ? activity.map(item => (
                       <div className="flex gap-2.5" key={item.id}>
                         <span className={cn(
@@ -1759,7 +1889,8 @@ export default function Home() {
                     <TabsContent key={mode} value={mode} className="mt-2">
                       <div
                         ref={mode === tab ? previewViewport : null}
-                        className={cn("cue-scroll h-[400px] overflow-y-auto rounded-[4px] border border-border/60 bg-black/25 p-3", mode === "compare" && "h-[460px]")}
+                        tabIndex={0} aria-label={`${mode} subtitle editor`}
+                        className={cn("subnexa-editor-scroll h-[400px] rounded-[4px] border border-border/60 bg-black/25 p-3", mode === "compare" && "h-[460px]")}
                       >
                         {renderCues()}
                       </div>
@@ -1863,26 +1994,19 @@ export default function Home() {
                 </p>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <Label className="text-xs text-muted-foreground">Quick presets</Label>
+                  <Label className="text-xs text-muted-foreground">Rule groups — click to turn on/off (200 active terms max)</Label>
                   <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(GLOSSARY_PRESETS).map(([name, preset]) => (
-                      <Button
-                        key={name}
-                        variant="outline"
-                        size="sm"
-                        className="h-7 gap-1 text-[11px]"
-                        disabled={loading}
+                    {[...Object.keys(GLOSSARY_PRESETS), CUSTOM].map(name => (
+                      <Button key={name} variant={glossaryGroups.enabled.includes(name) ? "default" : "outline"}
+                        size="sm" className="h-7 gap-1 text-[11px]" aria-pressed={glossaryGroups.enabled.includes(name)}
+                        disabled={loading || !glossaryReady || !glossaryGroups.groups[name]?.length}
                         onClick={() => {
                           try {
-                            const known = new Set(glossaryRules.map(x => x.source.toLowerCase()));
-                            const additions = preset.filter(x => !known.has(x.source.toLowerCase()));
-                            setGlossaryRules(validateGlossaryRules([...glossaryRules, ...additions]));
-                            setPlaygroundResult(null); resetTranslationResult();
-                            setGlossaryNotice(`Added ${additions.length} terms from ${name}.`);
-                          } catch (err) { setGlossaryNotice(err instanceof Error ? err.message : "Preset failed."); }
-                        }}
-                      >
-                        <Plus className="size-3" />{name}
+                            const enabled = !glossaryGroups.enabled.includes(name);
+                            applyGlossaryGroups(toggleGroup(glossaryGroups, name), `${name} ${enabled ? "enabled" : "disabled"}.`);
+                          } catch (err) { setGlossaryNotice(err instanceof Error ? err.message : "Cannot toggle rules."); }
+                        }}>
+                        {glossaryGroups.enabled.includes(name) ? "✓" : "+"} {name} ({glossaryGroups.groups[name]?.length ?? 0})
                       </Button>
                     ))}
                   </div>
@@ -1979,7 +2103,7 @@ export default function Home() {
                 )}
 
                 <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="text-xs font-medium">Saved terms <span className="text-muted-foreground">({glossaryRules.length})</span></h3>
+                  <h3 className="text-xs font-medium">Active terms <span className="text-muted-foreground">({glossaryRules.length})</span></h3>
                   <div className="relative sm:w-64">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -2010,15 +2134,15 @@ export default function Home() {
                           className="h-6 px-2 text-destructive hover:text-destructive"
                           disabled={loading}
                           aria-label={`Remove ${r.source}`}
-                          onClick={() => { setGlossaryRules(glossaryRules.filter((_, index) => index !== i)); setPlaygroundResult(null); setEditingRule(null); resetTranslationResult(); }}
+                          onClick={() => { applyGlossaryGroups(deleteRule(glossaryGroups, r.source), `Deleted ${r.source}.`); }}
                         >
-                          <Trash2 className="size-3" />
+                          <Trash2 className="size-3" /><span className="text-[10px]">Delete</span>
                         </Button>
                       </div>
                     </div>
                   )) : (
                     <p className="rounded-[4px] border border-dashed border-border/60 bg-black/25 p-3 text-xs text-muted-foreground">
-                      {glossaryRules.length ? "No matching terms." : "No glossary rules yet. Add a term or select a preset."}
+                      {glossaryRules.length ? "No matching terms." : "No active rules. Enable a group above or add a custom rule."}
                     </p>
                   )}
                 </div>

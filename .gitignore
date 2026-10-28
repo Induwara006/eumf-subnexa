@@ -23,3 +23,6 @@ _subnexa_*_backup_*/
 backend/translation_progress/
 backend/library_files/
 backend/subnexa_library.db
+
+# Local usage ledger
+backend/.subnexa_usage.sqlite3*

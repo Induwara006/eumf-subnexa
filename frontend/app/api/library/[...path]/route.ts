@@ -7,7 +7,7 @@ export const maxDuration = 60;
 const BUCKET = "subnexa-library";
 const MAX = 2 * 1024 * 1024;
 type Context = { params: Promise<{ path: string[] }> };
-type Item = { id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number };
+type Item = { id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number; translated_by?: string | null };
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -38,7 +38,7 @@ function json(value: unknown, status = 200) {
 }
 function publicItem(item: Item) {
   return { id: item.id, title: item.title, year: item.year, language: item.language,
-    format: item.format, downloads: item.downloads,
+    format: item.format, downloads: item.downloads, translated_by: item.translated_by || null,
     poster_url: item.poster_type ? `/library/items/${item.id}/poster` : null,
     download_url: `/library/items/${item.id}/download` };
 }

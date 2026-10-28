@@ -15,7 +15,8 @@ _selected = contextvars.ContextVar('subnexa_v47_selected_provider', default=None
 
 MODE_NORMAL = 'subnexa_02'
 MODE_PRO = 'subnexa_pro'
-VALID_MODES = frozenset((MODE_NORMAL, MODE_PRO))
+MODE_VPS = 'subnexa_11'
+VALID_MODES = frozenset((MODE_NORMAL, MODE_PRO, MODE_VPS))
 
 
 def selected_mode():
@@ -44,12 +45,16 @@ def gemini_site_configured() -> bool:
 
 
 def availability():
-    return {MODE_NORMAL: cf_configured(), MODE_PRO: gemini_site_configured()}
+    from subnexa_vps import configured as vps_configured
+    return {MODE_NORMAL: cf_configured(), MODE_PRO: gemini_site_configured(), MODE_VPS: vps_configured()}
 
 
 def routed_client(personal_key=None):
     from subnexa_account_pool import pooled_client
     mode = selected_mode()
+    if mode == MODE_VPS:
+        from subnexa_vps import VPSClient
+        return VPSClient()
     if mode == MODE_NORMAL:
         return pooled_client('cloudflare')
     if mode == MODE_PRO:

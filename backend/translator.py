@@ -299,6 +299,9 @@ def _parse_array(response, expected: int) -> list[str]:
 
 
 def _generate_array(client, prompt: str, expected: int) -> list[str]:
+    from subnexa_model_router import selected_mode
+    if selected_mode() == "subnexa_11":
+        return client.generate_array(prompt, expected)
     try:
         response = client.models.generate_content(
             model=MODEL,
@@ -330,6 +333,8 @@ async def _translate_batch_to_sinhala_core(texts, style="natural", on_stage=None
     if not all(isinstance(text, str) for text in texts):
         raise ValueError("Subtitle input must contain only strings.")
 
+    from subnexa_usage import callback
+    callback.set(on_stage)
     client = _client()
     selected = STYLES.get(style, STYLES["natural"])
     payload = json.dumps(texts, ensure_ascii=False)
@@ -354,7 +359,7 @@ async def _translate_batch_to_sinhala_core(texts, style="natural", on_stage=None
     # SubNexa V4.8 CLOUDFLARE NORMAL: standalone, single-pass prompt.
     # Gemini Pro keeps the existing translation -> review -> targeted repair path.
     from subnexa_model_router import selected_mode
-    if selected_mode() == "subnexa_02":
+    if selected_mode() in ("subnexa_02", "subnexa_11"):
         cf_prompt = f"""/no_think
 ROLE: You are the dialogue translator for SubNexa 0.2. Translate the English subtitle array to clear, idiomatic, natural SRI LANKAN SINHALA (සිංහල) appropriate for a film/TV subtitle.
 
@@ -381,9 +386,11 @@ OUTPUT CONTRACT: Return ONLY a valid JSON array of EXACTLY {len(texts)} Sinhala 
 INPUT JSON ARRAY:
 {payload}
 """
+        if selected_mode() == "subnexa_11":
+            cf_prompt = cf_prompt.replace("SubNexa 0.2", "SubNexa 1.1")
         if on_stage:
             on_stage("translation", len(texts))
-        print(f"[SubNexa 0.2] single-pass Cloudflare normal translation: {len(texts)} lines", flush=True)
+        print(f"[{'SubNexa 1.1' if selected_mode() == 'subnexa_11' else 'SubNexa 0.2'}] single-pass translation: {len(texts)} lines", flush=True)
         result = await asyncio.to_thread(_generate_array, client, cf_prompt, len(texts))
         # Basic safe-output validation only; intentionally no AI review request.
         good = {i: line for i, (src, line) in enumerate(zip(texts, result))

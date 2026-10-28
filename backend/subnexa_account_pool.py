@@ -73,6 +73,7 @@ class PoolModels:
 
     def generate_content(self, **kwargs):
         while self.index < len(self.values):
+            quota_attempt = None
             if self.client is None:
                 if self.provider == 'gemini':
                     from google import genai
@@ -85,8 +86,21 @@ class PoolModels:
                     from cloudflare_subnexa import CloudflareClient
                     self.client = CloudflareClient(*self.values[self.index])
             try:
-                return self.client.models.generate_content(**kwargs)
+                if self.provider == 'gemini':
+                    from subnexa_usage import pace, record
+                    pace(self.values[self.index], kwargs.get('model', 'default'))
+                    from subnexa_quota import reserve, publish
+                    quota_attempt = reserve(self.values[self.index], kwargs.get('model', 'default'))
+                response = self.client.models.generate_content(**kwargs)
+                if self.provider == 'gemini':
+                    record(response)
+                    publish(kwargs.get('model', 'default'))
+                return response
             except Exception as error:
+                if self.provider == 'gemini' and quota_attempt:
+                    from subnexa_quota import failure, publish
+                    failure(error, quota_attempt)
+                    publish(kwargs.get('model', 'default'))
                 if not quota_error(error):
                     raise
                 close = getattr(self.client, 'close', None)
