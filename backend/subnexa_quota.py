@@ -30,13 +30,26 @@ def configuration(model):
     if not isinstance(limits,dict):
         raise RuntimeError('Invalid Gemini project limits.')
     result = {}
-    for key, project in zip(keys, projects):
+    for position, (key, project) in enumerate(zip(keys, projects), 1):
         project = project.strip()
         entry = limits.get(project, {}).get(model, {})
         rpd = entry.get('rpd')
         rpm = entry.get('rpm')
         if any(not isinstance(x,int) or isinstance(x,bool) or x < 1 for x in (rpd,rpm)):
-            raise RuntimeError('Configure positive RPD/RPM for each project and model.')
+            valid_count = sum(
+                isinstance(limits.get(p, {}).get(model, {}).get('rpd'), int)
+                and not isinstance(limits.get(p, {}).get(model, {}).get('rpd'), bool)
+                and limits[p][model]['rpd'] > 0
+                and isinstance(limits.get(p, {}).get(model, {}).get('rpm'), int)
+                and not isinstance(limits.get(p, {}).get(model, {}).get('rpm'), bool)
+                and limits[p][model]['rpm'] > 0
+                for p in projects
+            )
+            raise RuntimeError(
+                f'Configure positive RPD/RPM for each project and model. '
+                f'[model={model}; valid={valid_count}/{len(projects)}; '
+                f'limit_entries={len(limits)}; first_invalid_position={position}]'
+            )
         identity = hashlib.sha256(project.encode()).hexdigest()
         result[key] = {'project':identity, 'rpd':rpd, 'rpm':rpm}
     return result
