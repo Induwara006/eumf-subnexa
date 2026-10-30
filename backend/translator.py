@@ -329,6 +329,30 @@ def _generate_array(client, prompt: str, expected: int) -> list[str]:
     return _parse_array(response, expected)
 
 
+def _batch_translation_rules(texts):
+    """Do not teach placeholder examples to batches without protected terms."""
+    if any(TOKEN_RE.search(text) for text in texts):
+        return TRANSLATION_RULES
+    rules = TRANSLATION_RULES
+    start = rules.index("GLOSSARY PROTECTION (")
+    end = rules.index("DIALOGUE NATURALNESS AND CONSISTENCY:", start)
+    rules = rules[:start] + rules[end:]
+    rules = rules.replace("Keep [[SNX_XXXX]] protected glossary tokens unchanged within their subtitle.\n", "")
+    rules = rules.replace(
+        "- Before finalizing, silently read the final Sinhala with each glossary token\n"
+        "  mentally replaced by its FINAL_TEXT hint. Fix unnatural case, spacing and rhythm\n"
+        "  AROUND markers, without changing, deleting or spelling out any marker.\n", "")
+    return rules + "\nNo protected placeholders occur in this batch. Translate actual words and names; never invent placeholder IDs.\n"
+
+
+def _review_candidate(value, original):
+    # A corrupt marker can anchor the next pass to the same wrong answer.
+    # Omit this candidate and ask for translation from the authoritative source.
+    if Counter(TOKEN_RE.findall(value)) != Counter(TOKEN_RE.findall(original)):
+        return None
+    return value
+
+
 async def _translate_batch_to_sinhala_core(texts, style="natural", on_stage=None,
                                            context_texts=None, glossary_hints=None):
     """Translate and review a batch; return the same number of subtitle strings.
@@ -409,6 +433,14 @@ INPUT JSON ARRAY:
         return result
 
     # Pro only: recover exact configured outputs before strict validation.
+    protected = any(TOKEN_RE.search(text) for text in texts)
+    repair_token_note = (
+        "Copy ONLY protected markers present in each English entry, exactly once in that same entry. "
+        "Keep suffixes outside the marker. Never invent markers."
+        if protected else
+        "No protected placeholders occur in these source entries. Translate actual words and names. "
+        "Never output placeholder IDs."
+    )
     hint_maps = [{} for _ in texts]
     for hint in glossary_hints or []:
         hint_maps[hint["entry"] - 1][hint["token"]] = hint["FINAL_TEXT"]
@@ -417,7 +449,8 @@ INPUT JSON ARRAY:
         positions = range(len(texts)) if indexes is None else indexes
         return [recover_tokens(line, hint_maps[i]) for i, line in zip(positions, lines)]
 
-    draft_prompt = f"""{TRANSLATION_RULES}
+    batch_rules = _batch_translation_rules(texts)
+    draft_prompt = f"""{batch_rules}
 PHASE 1 — WRITE NATURAL CINEMATIC SUBTITLES.
 Style: {selected}
 
@@ -447,14 +480,15 @@ ENGLISH ENTRIES:
     drafts = recover(drafts)
 
     pairs = [
-        {"english": original, "draft_sinhala": draft}
+        {"english": original, "draft_sinhala": _review_candidate(draft, original)}
         for original, draft in zip(texts, drafts)
     ]
-    review_prompt = f"""{TRANSLATION_RULES}
+    review_prompt = f"""{batch_rules}
 PHASE 2 — INDEPENDENT NATIVE SINHALA SUBTITLE EDITOR.
 Style: {selected}
 
 The English source is the authority. The Sinhala draft is ONLY a draft, not ground truth.
+A null draft was rejected: translate that entry afresh from its English source.
 For EVERY entry perform this editorial process SILENTLY:
 (1) Read the English alone and determine its actual meaning, urgency, level of politeness,
     and emotion. Distinguish facts, speculation, regret, jokes, and implied intent.
@@ -483,7 +517,7 @@ FINAL EDITORIAL AUDIT — apply to EVERY subtitle independently before output:
 A. SEMANTIC ROLES: Verify the original actor, target, beneficiary and owner.
    "We need Tony Stark to fix the Arc Reactor" means TONY STARK must fix it,
    NOT that Tony Stark himself needs repairing. Prefer natural wording such as
-   "Arc Reactor එක හදන්න අපිට [[PERSON]]ගේ උදව් ඕනේ" when a protected
+   "Arc Reactor එක හදන්න අපිට Tony Starkගේ උදව් ඕනේ" when that
    person is the intended fixer. Do not insert a glossary placeholder if it is
    absent from the actual input; this example only illustrates the distinction.
 B. LOGICAL FORCE: Preserve who knows/believes what, possibility vs certainty,
@@ -566,9 +600,16 @@ ENGLISH AND DRAFT SINHALA PAIRS:
         for i in bad_indexes:
             print(f"[SubNexa AI] invalid batch entry {i + 1}: "
                   f"{','.join(_invalid_reasons(final[i], texts[i]))}", flush=True)
+            expected = Counter(TOKEN_RE.findall(texts[i]))
+            actual = Counter(TOKEN_RE.findall(final[i]))
+            if expected != actual:
+                print(f"[SubNexa Glossary] token mismatch entry={i + 1} "
+                      f"expected={sum(expected.values())} actual={sum(actual.values())} "
+                      f"missing={sum((expected - actual).values())} "
+                      f"unexpected={sum((actual - expected).values())}", flush=True)
         repair_pairs = [
-            {"english": texts[i], "draft_sinhala": drafts[i],
-             "reviewed_sinhala": reviewed[i]}
+            {"english": texts[i], "draft_sinhala": _review_candidate(drafts[i], texts[i]),
+             "reviewed_sinhala": _review_candidate(reviewed[i], texts[i])}
             for i in bad_indexes
         ]
         repair_prompt = f"""You are a precise native Sri Lankan Sinhala subtitle editor.
@@ -588,9 +629,9 @@ that semantic detail. Independently verify every repaired line against its
 English, including negation, uncertainty, relationships and original tone.
 Preserve the source's strong or mild register, including coarse language where
 actually present. Do not add insults or soften the source's emotional strength.
-For protected [[SNX_XXXX]] markers: keep each marker byte-for-byte. Any case
-suffix or noun particle belongs OUTSIDE it; make the restored sentence natural.
-Check natural Sinhala syntax in the surrounding dialogue without changing tokens.
+{repair_token_note}
+A null draft/review was rejected. Translate afresh from the English source.
+Check natural Sinhala syntax in the surrounding dialogue.
 Remove unexplained '#' symbols, markdown formatting, stray foreign scripts,
 and replacement glyphs; keep symbols that are truly part of the English meaning.
 No explanations. Return ONLY a JSON array of exactly {len(bad_indexes)} strings.
@@ -665,6 +706,7 @@ async def translate_batch_to_sinhala(texts, style="natural", on_stage=None,
     When AI corrupts a token, preserve the safe entries and let the backend's
     existing targeted retry/resume logic deal with affected lines.
     """
+    print(f"[SubNexa Glossary] received_rules={len(glossary or [])}", flush=True)
     if not glossary:
         return await _translate_batch_to_sinhala_core(
             texts, style=style, on_stage=on_stage, context_texts=context_texts)
