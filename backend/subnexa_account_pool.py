@@ -91,6 +91,9 @@ class PoolModels:
                     pace(self.values[self.index], kwargs.get('model', 'default'))
                     from subnexa_quota import reserve, publish
                     quota_attempt = reserve(self.values[self.index], kwargs.get('model', 'default'))
+                if self.provider == 'gemini':
+                    from subnexa_fairuse import reserve_request
+                    reserve_request()
                 response = self.client.models.generate_content(**kwargs)
                 if self.provider == 'gemini':
                     record(response)

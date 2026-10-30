@@ -111,6 +111,8 @@ def list_models() -> list[dict]:
 def generate_array(prompt: str, expected: int) -> list[str]:
     """Request an array; preserve the legacy SubNexa JSON-array contract."""
     model = (os.getenv('CODECRAFT_MODEL') or DEFAULT_MODEL).strip()
+    from subnexa_fairuse import reserve_request
+    reserve_request()
     data = _request('/chat/completions', body={
         'model': model,
         'messages': [

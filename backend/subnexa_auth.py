@@ -31,6 +31,7 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/subnexa-auth", tags=["SubNexa Google Login"])
 _current_key = contextvars.ContextVar("subnexa_current_user_gemini_key", default=None)
 _current_sub = contextvars.ContextVar("subnexa_current_user_sub", default=None)
+_current_email = contextvars.ContextVar("subnexa_current_user_email", default=None)
 PROJECT_ID = re.compile(r"^(?:[a-z][a-z0-9-]{4,61}[a-z0-9]|[0-9]{6,20})$")
 FRONTEND = os.getenv("SUBNEXA_FRONTEND_URL", "http://localhost:3000").rstrip("/")
 COOKIE_SECURE = os.getenv("SUBNEXA_COOKIE_SECURE", "false").lower() == "true"
@@ -107,6 +108,11 @@ def _save_record(sub, project_id, sa_email, resource, api_key):
 def current_user_sub():
     """Unique authenticated Google subject for per-user cache isolation."""
     return _current_sub.get()
+
+
+def current_user_email():
+    """Email from the verified, signed Google session; never request input."""
+    return _current_email.get()
 
 
 def current_translation_key():
@@ -416,10 +422,12 @@ class UserKeyASGIMiddleware:
                     # An authorized site key or Cloudflare may still be available.
                     if not hybrid_configured():
                         return await _deny(send, 503, b'{"detail":"No readable AI credentials are available"}', headers.get("origin"))
+            email_token = _current_email.set(user.get("email", ""))
             sub_token = _current_sub.set(user["sub"])
             try:
                 await self.app(scope, receive, send)
             finally:
+                _current_email.reset(email_token)
                 _current_sub.reset(sub_token)
                 if key_token is not None:
                     _current_key.reset(key_token)
@@ -429,10 +437,12 @@ class UserKeyASGIMiddleware:
         if cloudflare_active():
             if not cloudflare_configured():
                 return await _deny(send, 503, b'{"detail":"Cloudflare server configuration is missing"}', headers.get("origin"))
+            email_token = _current_email.set(user.get("email", ""))
             sub_token = _current_sub.set(user["sub"])
             try:
                 await self.app(scope, receive, send)
             finally:
+                _current_email.reset(email_token)
                 _current_sub.reset(sub_token)
             return
         row = _get_record(user["sub"])
@@ -443,10 +453,12 @@ class UserKeyASGIMiddleware:
         except Exception:
             return await _deny(send, 503, b'{"detail":"Connected key cannot be read"}', headers.get("origin"))
         token = _current_key.set(key)
+        email_token = _current_email.set(user.get("email", ""))
         sub_token = _current_sub.set(user["sub"])
         try:
             await self.app(scope, receive, send)
         finally:
+            _current_email.reset(email_token)
             _current_sub.reset(sub_token)
             _current_key.reset(token)
 

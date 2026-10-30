@@ -220,6 +220,9 @@ async def translate_subtitle(request: TranslationRequest):
         )
 
     try:
+        from subnexa_fairuse import account
+        import hashlib
+        await asyncio.to_thread(account, "file", hashlib.sha256((request.text + request.style + str(request.glossary)).encode()).hexdigest())
         rules = parse_glossary(request.glossary)
         sinhala_text = await translate_to_sinhala(
             request.text,
@@ -257,6 +260,10 @@ async def translate_srt(
 
     if len(content) > 2 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Maximum file size is 2 MB.")
+
+    from subnexa_fairuse import account
+    import hashlib
+    await asyncio.to_thread(account, "file", hashlib.sha256(content + style.encode() + glossary.encode()).hexdigest())
 
     try:
         subtitle_text = content.decode("utf-8-sig")
@@ -550,6 +557,17 @@ async def translate_srt_stream(
         if rec["export"] != (output_format, opening_credit):
             raise HTTPException(status_code=409, detail="Resume with the same output format and credit setting")
         return _translation_response(rec)
+    from subnexa_fairuse import account
+    await asyncio.to_thread(account, "file", job_id)
+    # Recheck after the database await: another request may have started the job.
+    for rec in _ACTIVE_TRANSLATIONS.values():
+        if rec["job_id"] != job_id:
+            continue
+        if rec["owner"] != owner:
+            raise HTTPException(status_code=409, detail="This subtitle translation is already running")
+        if rec["export"] != (output_format, opening_credit):
+            raise HTTPException(status_code=409, detail="Resume with the same output format and credit setting")
+        return _translation_response(rec)
     control_token = secrets.token_urlsafe(32)
     control_record = {"job_id": job_id, "owner": owner, "action": None,
                       "export": (output_format, opening_credit), "events": [],
@@ -589,7 +607,7 @@ async def translate_srt_stream(
         yield event("resume_status", resumed=completed > 0,
                     completed=completed, total=total, control_token=control_token)
 
-        def interruption_event(action_override=None):
+        def interruption_event(action_override=None, reason=None):
             # Only exported completed nonblank translations; keep original timestamps.
             partial = [srt.Subtitle(index=i + 1, start=sub.start, end=sub.end,
                                     content=saved[str(i)])
@@ -601,7 +619,7 @@ async def translate_srt_stream(
             name = f"{name}_draft_{len(partial)}_of_{total}.srt"
             return event("interrupted", action=action_override or control_record["action"] or "paused",
                          completed=len(saved), total=total, draft_count=len(partial),
-                         filename=name, content=content)
+                         filename=name, content=content, reason=reason)
 
         yield event("progress", completed=completed, total=total)
         yield event("activity", stage="ready", message="Translation job ready",
@@ -783,7 +801,7 @@ async def translate_srt_stream(
                     print(f"[SubNexa] paused: unrepaired subtitle(s) "
                           f"{[i + 1 for i in unresolved]}", flush=True)
                     yield event("activity", stage="failed", count=len(unresolved))
-                    yield interruption_event("failed")
+                    yield interruption_event("failed", str(error.cause) if isinstance(error.cause, FairUseError) else None)
                     return
 
                 except Exception as error:
@@ -807,7 +825,7 @@ async def translate_srt_stream(
                           flush=True)
                     save_progress(job_id, saved)
                     yield event("activity", stage="failed", count=len(active))
-                    yield interruption_event("failed")
+                    yield interruption_event("failed", str(error) if isinstance(error, FairUseError) else None)
                     return
 
                 for i, translated_text in zip(active, translations):
@@ -910,4 +928,13 @@ from subnexa_auth import router as subnexa_auth_router, UserKeyASGIMiddleware
 app.include_router(subnexa_auth_router)
 from subnexa_library import router as subnexa_library_router
 app.include_router(subnexa_library_router)
+from subnexa_library_match import router as subnexa_library_match_router
+app.include_router(subnexa_library_match_router)
 app.add_middleware(UserKeyASGIMiddleware)
+
+from subnexa_fairuse import router as fairuse_router, FairUseError
+from fastapi.responses import JSONResponse
+app.include_router(fairuse_router)
+@app.exception_handler(FairUseError)
+async def fairuse_error(request: Request, exc: FairUseError):
+    return JSONResponse(status_code=429, content={"detail": str(exc)}, headers={"Cache-Control": "no-store"})

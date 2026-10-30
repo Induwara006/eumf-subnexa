@@ -56,6 +56,8 @@ class VPSClient:
         if os.getenv('SUBNEXA_11_DISABLE_THINKING', '').lower() == 'true':
             payload['think'] = False
         try:
+            from subnexa_fairuse import reserve_request
+            reserve_request()
             with requests.post(url+'/api/chat', json=payload,
                                headers={'Authorization': 'Bearer '+token},
                                timeout=(10, 200), allow_redirects=False, stream=True) as response:

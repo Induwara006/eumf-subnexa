@@ -110,6 +110,8 @@ class _CloudflareModels:
         # HTTP quota/auth/network errors still go to the existing account pool.
         for attempt in range(1, 4):
             try:
+                from subnexa_fairuse import reserve_request
+                reserve_request()
                 result = requests.post(
                     url, json=data,
                     headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},

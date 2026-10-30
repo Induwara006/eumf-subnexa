@@ -303,12 +303,20 @@ def _generate_array(client, prompt: str, expected: int) -> list[str]:
     if selected_mode() == "subnexa_11":
         return client.generate_array(prompt, expected)
     try:
+        from subnexa_account_pool import PoolModels
+        from cloudflare_subnexa import CloudflareClient
+        if not isinstance(client.models, PoolModels) and not isinstance(client, CloudflareClient):
+            from subnexa_fairuse import reserve_request
+            reserve_request()
         response = client.models.generate_content(
             model=MODEL,
             contents=prompt,
             config={"response_mime_type": "application/json"},
         )
     except Exception as primary_error:
+        from subnexa_fairuse import FairUseError
+        if isinstance(primary_error, FairUseError):
+            raise
         from subnexa_model_router import selected_mode
         if selected_mode() is not None:
             raise  # Never change providers for an explicit model choice.

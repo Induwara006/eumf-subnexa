@@ -41,6 +41,13 @@ def clean_text(value, maximum):
 
 
 def title_from_filename(filename):
+    try:
+        from subnexa_title_clean import library_title
+        cleaned = library_title(filename)
+        if cleaned[0]:
+            return cleaned
+    except Exception:
+        pass  # fall back to the original logic below
     leaf = re.split(r'[/\\]', filename or '')[-1]
     leaf = re.sub(r'\.(srt|ass)$', '', leaf, flags=re.I)
     year_match = re.search(r'(?<!\d)((?:19|20)\d{2})(?!\d)', leaf)
@@ -142,6 +149,19 @@ def publish_completed(*, user, job_id, original_filename, content, output_format
         prior=existing(identity)
         if not prior:
             raise RuntimeError('Library publication not confirmed')
+        # Best effort: attach a TMDB poster in the background. A missing poster
+        # must never block or fail publication.
+        try:
+            from subnexa_library_poster import attach_poster_async
+            try:
+                from subnexa_title_clean import parse_release
+                parsed = parse_release(title)
+                poster_title, is_series = parsed['title'], bool(parsed['episode'])
+            except Exception:
+                poster_title, is_series = title, False
+            attach_poster_async(identity, poster_title, year, is_series)
+        except Exception:
+            pass
         return {'saved':True,'id':identity,'translated_by':prior.get('translated_by') or name,'already_exists':False}
     except Exception as error:
         # Retain private uploaded bytes after ambiguous DB errors so a later retry
