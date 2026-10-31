@@ -7,7 +7,7 @@ export const maxDuration = 60;
 const BUCKET = "subnexa-library";
 const MAX = 2 * 1024 * 1024;
 type Context = { params: Promise<{ path: string[] }> };
-type Item = { id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number; translated_by?: string | null };
+type Item = { id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number; translated_by?: string | null; kind?: "movie" | "season"; season_key?: string | null; season_slug?: string | null; series_title?: string | null; season_number?: number | null; episode_number?: number | null; episode_count?: number; file_count?: number };
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -38,6 +38,9 @@ function json(value: unknown, status = 200) {
 }
 function publicItem(item: Item) {
   return { id: item.id, title: item.title, year: item.year, language: item.language,
+    season_slug: item.season_slug || null, kind: item.kind || "movie", season_key: item.season_key || null, series_title: item.series_title || null,
+    season_number: item.season_number ?? null, episode_number: item.episode_number ?? null,
+    episode_count: item.episode_count, file_count: item.file_count,
     format: item.format, downloads: item.downloads, translated_by: item.translated_by || null,
     poster_url: item.poster_type ? `/library/items/${item.id}/poster` : null,
     download_url: `/library/items/${item.id}/download` };
@@ -89,7 +92,8 @@ async function createItem(request: Request) {
     if (value !== null && typeof value !== "string") throw new HttpError(400, "Invalid text field.");
     return (value ?? fallback).trim();
   };
-  const title = field("title"), year = field("year"), language = field("language", "Sinhala") || "Sinhala";
+  let title = field("title");
+  const year = field("year"), language = field("language", "Sinhala") || "Sinhala";
   if (!title || title.length > 120) throw new HttpError(400, "Title is required (max 120 characters).");
   if (year && !/^\d{4}$/.test(year)) throw new HttpError(400, "Year must be four digits.");
   if (language.length > 30) throw new HttpError(400, "Language is too long.");
@@ -98,6 +102,19 @@ async function createItem(request: Request) {
   const format = file.name.toLowerCase().endsWith(".srt") ? "srt" : file.name.toLowerCase().endsWith(".ass") ? "ass" : null;
   if (!format) throw new HttpError(400, "Subtitle must be SRT or ASS.");
   if (file.size > MAX) throw new HttpError(413, "Subtitle is larger than 2 MB.");
+  // Keep episode identity even when a poster search fills only the series name.
+  const seasonInput = field("season_number"), episodeInput = field("episode_number");
+  if (seasonInput || episodeInput) {
+    if (!/^\d{1,2}$/.test(seasonInput) || !/^\d{1,3}$/.test(episodeInput))
+      throw new HttpError(400, "Enter both season (0–99) and episode (0–999).");
+    title = title.replace(/[ ._-]+s\d{1,2}[ ._-]*e\d{1,3}.*$/i, "").trim();
+    title += ` S${seasonInput.padStart(2,"0")}E${episodeInput.padStart(2,"0")}`;
+  } else if (!/[ ._-]+(?:s\d{1,2}[ ._-]*e\d{1,3}|\d{1,2}x\d{1,3})(?!\d)/i.test(title)) {
+    const match = file.name.match(/(?:^|[ ._-])s(\d{1,2})[ ._-]*e(\d{1,3})(?!\d)/i)
+      || file.name.match(/(?:^|[ ._-])(\d{1,2})x(\d{1,3})(?!\d)/i);
+    if (match) title += ` S${match[1].padStart(2,"0")}E${match[2].padStart(2,"0")}`;
+  }
+  if (title.length > 120) throw new HttpError(400, "Use a shorter title to leave room for the episode number.");
   const bytes = await file.arrayBuffer();
   let text: string;
   try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { throw new HttpError(400, "Subtitle must be UTF-8."); }
@@ -172,6 +189,19 @@ async function handle(request: Request, context: Context) {
       if (query.length > 80 || !Number.isInteger(limit) || limit < 1 || limit > 200) throw new HttpError(400, "Invalid search query or limit.");
       const rows = await (await rpc("subnexa_library_search", { query_text: query, result_limit: limit })).json() as Item[];
       return json({ items: rows.map(publicItem) });
+    }
+    if (request.method === "GET" && (route === "browse" || (path[0] === "seasons" && path.length === 2))) {
+      const url = new URL(request.url);
+      const offset = Number(url.searchParams.get("offset") || 0);
+      const query = (url.searchParams.get("q") || "").trim();
+      if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000 || query.length > 80)
+        throw new HttpError(400, "Invalid page or search.");
+      const isSeason = route !== "browse";
+      if (isSeason && !/^[a-z0-9][a-z0-9-]{0,199}$/.test(path[1])) throw new HttpError(404, "Season not found.");
+      const data = await (await rpc(isSeason ? "subnexa_library_season_url_v1" : "subnexa_library_browse_v1",
+        isSeason ? {p_key: path[1], p_offset: offset, p_limit: 60} : {p_query: query, p_offset: offset, p_limit: 60})).json();
+      if (isSeason && !data.total) throw new HttpError(404, "No subtitles are available for this season.");
+      return json({...data, items: (data.items as Item[]).map(publicItem)});
     }
     if (path[0] !== "items" || !path[1] || path.length > 3) throw new HttpError(404, "Not found.");
     if (request.method === "DELETE" && path.length === 2) {

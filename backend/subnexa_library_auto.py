@@ -121,6 +121,8 @@ def publish_completed(*, user, job_id, original_filename, content, output_format
         return {'saved':False, 'reason':'size_limit'}
     if (output_format=='srt' and '-->' not in content) or (output_format=='ass' and '[Events]' not in content):
         return {'saved':False, 'reason':'invalid_output'}
+    from subnexa_profile import record_completed
+    record_completed(user, job_id)
     name=clean_text(user.get('name'),120) or 'SubNexa user'
     identity=item_id(user['sub'],job_id,output_format,opening_credit)
     try:

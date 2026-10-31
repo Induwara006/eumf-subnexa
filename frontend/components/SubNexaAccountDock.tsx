@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import SubNexaGoogleAccount from "./SubNexaGoogleAccount";
+import ProfileTranslationStats from "./ProfileTranslationStats";
 
 /**
  * Account panel wrapper around the existing Google Account component.
@@ -49,6 +50,7 @@ export default function SubNexaAccountDock() {
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <SubNexaGoogleAccount />
+          <ProfileTranslationStats />
         </div>
       </SheetContent>
     </Sheet>

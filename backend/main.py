@@ -926,6 +926,8 @@ async def translate_srt_stream(
 # SubNexa V4.2 — consent-based user-owned Google Cloud Gemini keys
 from subnexa_auth import router as subnexa_auth_router, UserKeyASGIMiddleware
 app.include_router(subnexa_auth_router)
+from subnexa_profile import router as subnexa_profile_router
+app.include_router(subnexa_profile_router)
 from subnexa_library import router as subnexa_library_router
 app.include_router(subnexa_library_router)
 from subnexa_library_match import router as subnexa_library_match_router

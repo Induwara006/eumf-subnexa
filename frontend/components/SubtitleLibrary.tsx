@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import CommunityForm from "./CommunityForm";
 
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +23,14 @@ type LibraryItem = {
   poster_url: string | null;
   download_url: string;
   translated_by?: string | null;
+  kind?: "movie" | "season";
+  season_key?: string | null;
+  season_slug?: string | null;
+  series_title?: string | null;
+  season_number?: number | null;
+  episode_number?: number | null;
+  episode_count?: number;
+  file_count?: number;
 };
 
 function Poster({ item, api }: { item: LibraryItem; api: string }) {
@@ -47,10 +56,15 @@ function Poster({ item, api }: { item: LibraryItem; api: string }) {
 }
 
 /** Search bar + poster grid + owner tools. Used by the popup and by the /library page. */
-export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api: string; autoFocus?: boolean }) {
+export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonKey }: { api: string; autoFocus?: boolean; seasonKey?: string }) {
   // Keep the existing caller prop compatible; library requests use Vercel.
   void translationApi;
   const api = "/api";
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [seasonInfo, setSeasonInfo] = useState<{series_title: string; season_number: number; year: string; episode_count: number} | null>(null);
+  const [seasonNumber, setSeasonNumber] = useState("");
+  const [episodeNumber, setEpisodeNumber] = useState("");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -154,13 +168,15 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
       setLoading(true);
       setError("");
       try {
-        const response = await fetch(`${api}/library/items?q=${encodeURIComponent(query.trim())}`, {
+        const response = await fetch(`${api}/library/${seasonKey ? `seasons/${seasonKey}` : "browse"}?q=${encodeURIComponent(query.trim())}&offset=${offset}`, {
           signal: controller.signal,
           cache: "no-store",
         });
         if (!response.ok) throw new Error("Could not load the subtitle library.");
-        const data = (await response.json()) as { items: LibraryItem[] };
+        const data = (await response.json()) as { items: LibraryItem[]; total: number; series_title: string; season_number: number; year: string; episode_count: number };
         setItems(data.items);
+        setTotal(data.total);
+        if (seasonKey) setSeasonInfo(data);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         setError((err as Error).message || "Could not load the subtitle library.");
@@ -172,7 +188,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [query, api, reloadTick]);
+  }, [query, api, reloadTick, offset, seasonKey]);
 
   function lockArea() {
     posterRequest.current?.abort(); setPosterBusy(false);
@@ -210,6 +226,8 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
     const form = new FormData();
     form.append("title", title.trim());
     form.append("year", year.trim());
+    form.append("season_number", seasonNumber.trim());
+    form.append("episode_number", episodeNumber.trim());
     form.append("subtitle", subFile);
     if (posterFile) form.append("poster_image", posterFile);
     setUploading(true);
@@ -228,6 +246,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
       setNotice({ ok: true, text: `Added ${data.title}.` });
       setTitle("");
       setYear("");
+      setSeasonNumber(""); setEpisodeNumber("");
       setSubFile(null);
       clearPoster();
       setSelectedTitle("");
@@ -266,17 +285,23 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
   return (
     <div className="space-y-4">
       <CommunityForm kind="request" />
-      <div className="relative">
+      {seasonKey && seasonInfo && <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+        <p className="text-xs uppercase tracking-widest text-primary">TV Series {seasonInfo.year && `· ${seasonInfo.year}`}</p>
+        <h1 className="mt-2 text-2xl font-bold">{seasonInfo.series_title} · Season {seasonInfo.season_number}</h1>
+        <p className="mt-2 text-sm text-white/60">{seasonInfo.episode_count} episodes · {total} subtitle files. Choose an episode below.</p>
+      </div>}
+      {!seasonKey && <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/50" />
         <Input
           value={query}
-          onChange={event => setQuery(event.target.value)}
+          onChange={event => { setQuery(event.target.value); setOffset(0); }}
+          maxLength={80}
           placeholder="Search movies and series…"
           aria-label="Search subtitle library"
           className="h-11 pl-9"
           autoFocus={autoFocus}
         />
-      </div>
+      </div>}
 
       {error ? (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
@@ -295,24 +320,26 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
             <div key={item.id} className="group flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
               <div className="relative aspect-[2/3] overflow-hidden bg-black/40">
                 <Poster item={item} api={api} />
-                <Badge className="absolute left-2 top-2 h-5 bg-black/70 px-2 text-[10px] font-semibold uppercase text-white">{item.format}</Badge>
+                <Badge className="absolute left-2 top-2 h-5 bg-black/70 px-2 text-[10px] font-semibold uppercase text-white">{item.kind === "season" ? `Season ${item.season_number}` : seasonKey ? `Episode ${item.episode_number}` : item.format}</Badge>
               </div>
               <div className="flex flex-1 flex-col gap-2 p-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white" title={item.title}>{item.title}</p>
+                  <p className="truncate text-sm font-semibold text-white" title={item.title}>{item.kind === "season" ? item.series_title : item.title}</p>
                   <p className="text-[11px] text-white/55">
                     {[item.year, item.language].filter(Boolean).join(" · ")}
                     {item.downloads > 0 ? ` · ${item.downloads} downloads` : ""}
                   </p>
-                  {item.translated_by && <p className="truncate text-[11px] text-white/70" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
+                  {item.kind === "season" && <p className="text-[11px] text-white/70">{item.episode_count} episodes · {item.file_count} files</p>}
+                  {item.kind !== "season" && item.translated_by && <p className="truncate text-[11px] text-white/70" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
                 </div>
                 <div className="mt-auto flex items-center gap-2">
                   <Button asChild size="sm" className="h-8 flex-1 gap-1.5 text-xs">
+                    {item.kind === "season" ? <Link href={`/library/tv-series/${item.season_slug || item.season_key}`}>View episodes</Link> :
                     <a href={`${api}${item.download_url}`} download>
-                      <Download className="size-3.5" />Download
-                    </a>
+                      <Download className="size-3.5" />Download {seasonKey ? item.format.toUpperCase() : ""}
+                    </a>}
                   </Button>
-                  {ownerOpen && unlocked ? (
+                  {ownerOpen && unlocked && item.kind !== "season" ? (
                     <Button size="icon" variant="outline" className="size-8 shrink-0" onClick={() => deleteItem(item)} aria-label={`Delete ${item.title}`}>
                       <Trash2 className="size-3.5" />
                     </Button>
@@ -324,6 +351,11 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
         </div>
       )}
 
+      {total > 60 && <nav aria-label="Library pages" className="flex items-center justify-between gap-3">
+        <Button variant="outline" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0,offset-60))}>Previous</Button>
+        <span className="text-xs text-white/60">Page {Math.floor(offset/60)+1} of {Math.ceil(total/60)}</span>
+        <Button variant="outline" disabled={loading || offset+60 >= total} onClick={() => setOffset(offset+60)}>Next</Button>
+      </nav>}
       <details className="text-[10px] text-white/45">
         <summary className="cursor-pointer">Poster credits</summary>
         <p className="mt-1">This product uses the <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline">TMDB</a> API but is not endorsed or certified by TMDB.</p>
@@ -370,6 +402,15 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false }: { api
               <Label htmlFor="lib-year" className="text-xs">Year (optional)</Label>
               <Input id="lib-year" value={year} onChange={e => setYear(e.target.value)} maxLength={4} inputMode="numeric" placeholder="2024" />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lib-season" className="text-xs">TV season (optional)</Label>
+              <Input id="lib-season" value={seasonNumber} onChange={e => setSeasonNumber(e.target.value)} inputMode="numeric" maxLength={2} placeholder="1" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lib-episode" className="text-xs">TV episode (optional)</Label>
+              <Input id="lib-episode" value={episodeNumber} onChange={e => setEpisodeNumber(e.target.value)} inputMode="numeric" maxLength={3} placeholder="4" />
+            </div>
+            <p className="text-xs text-white/55 sm:col-span-2">For TV, enter both numbers or use a filename containing S01E04. Leave both empty for films.</p>
             <div className="space-y-1.5">
               <Label htmlFor="lib-sub" className="text-xs">Subtitle file (.srt or .ass)</Label>
               <Input ref={subInput} disabled={uploading} id="lib-sub" type="file" accept=".srt,.ass" onChange={e => setSubFile(e.target.files?.[0] ?? null)} />
