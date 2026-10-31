@@ -82,4 +82,19 @@ def submit(body: Submission, request: Request):
         "p_event": str(body.event_id)})
     if not result.get("allowed"):
         raise HTTPException(429, "Daily submission limit reached. Try again after the next reset.")
+    if body.kind == "report":
+        # Existing community submission is authoritative; moderation mirror failures are logged.
+        try:
+            import requests
+            import logging
+            base, headers, scope = settings()
+            report_headers = {**headers, "Prefer": "resolution=ignore-duplicates"}
+            with requests.post(base + "/rest/v1/subnexa_issue_reviews", headers=report_headers,
+                json={"id": str(body.event_id), "title": body.title.strip(), "details": body.details.strip(), "status": "pending", "scope": scope},
+                timeout=(3,5), allow_redirects=False) as response:
+                if response.status_code not in (200,201,204,409):
+                    logging.warning("Issue review mirror unavailable: status %s", response.status_code)
+        except Exception:
+            import logging
+            logging.warning("Issue review mirror temporarily unavailable")
     return {"saved": True}

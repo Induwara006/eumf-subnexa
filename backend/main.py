@@ -937,6 +937,8 @@ app.add_middleware(UserKeyASGIMiddleware)
 from subnexa_fairuse import router as fairuse_router, FairUseError
 from fastapi.responses import JSONResponse
 app.include_router(fairuse_router)
+from subnexa_community_upload import router as community_upload_router
+app.include_router(community_upload_router)
 @app.exception_handler(FairUseError)
 async def fairuse_error(request: Request, exc: FairUseError):
     return JSONResponse(status_code=429, content={"detail": str(exc)}, headers={"Cache-Control": "no-store"})

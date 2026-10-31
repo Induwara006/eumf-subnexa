@@ -7,7 +7,7 @@ export const maxDuration = 60;
 const BUCKET = "subnexa-library";
 const MAX = 2 * 1024 * 1024;
 type Context = { params: Promise<{ path: string[] }> };
-type Item = { id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number; translated_by?: string | null; kind?: "movie" | "season"; season_key?: string | null; season_slug?: string | null; series_title?: string | null; season_number?: number | null; episode_number?: number | null; episode_count?: number; file_count?: number };
+type Item = { content_sha256?: string | null; genre?: string | null; id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number; translated_by?: string | null; kind?: "movie" | "season"; season_key?: string | null; season_slug?: string | null; series_title?: string | null; season_number?: number | null; episode_number?: number | null; episode_count?: number; file_count?: number };
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -40,7 +40,7 @@ function publicItem(item: Item) {
   return { id: item.id, title: item.title, year: item.year, language: item.language,
     season_slug: item.season_slug || null, kind: item.kind || "movie", season_key: item.season_key || null, series_title: item.series_title || null,
     season_number: item.season_number ?? null, episode_number: item.episode_number ?? null,
-    episode_count: item.episode_count, file_count: item.file_count,
+    episode_count: item.episode_count, file_count: item.file_count, genre: item.genre || null,
     format: item.format, downloads: item.downloads, translated_by: item.translated_by || null,
     poster_url: item.poster_type ? `/library/items/${item.id}/poster` : null,
     download_url: `/library/items/${item.id}/download` };
@@ -94,6 +94,8 @@ async function createItem(request: Request) {
   };
   let title = field("title");
   const year = field("year"), language = field("language", "Sinhala") || "Sinhala";
+  const genre = field("genre");
+  if (genre.length > 60) throw new HttpError(400, "Genre is too long.");
   if (!title || title.length > 120) throw new HttpError(400, "Title is required (max 120 characters).");
   if (year && !/^\d{4}$/.test(year)) throw new HttpError(400, "Year must be four digits.");
   if (language.length > 30) throw new HttpError(400, "Language is too long.");
@@ -119,6 +121,9 @@ async function createItem(request: Request) {
   let text: string;
   try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { throw new HttpError(400, "Subtitle must be UTF-8."); }
   if (!text.includes(format === "srt" ? "-->" : "[Events]")) throw new HttpError(400, "Invalid subtitle format.");
+  const fingerprint = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
+  const duplicates = await (await sb(`/rest/v1/subnexa_library_items?content_sha256=eq.${fingerprint}&select=id,title&limit=1`)).json() as {id:string; title:string}[];
+  if (duplicates.length) throw new HttpError(409, `Identical subtitle already exists: ${duplicates[0].title}. Different subtitle versions remain allowed.`);
   let posterBytes: ArrayBuffer | null = null, posterKind = "";
   if (poster instanceof File && poster.name) {
     if (poster.size > MAX) throw new HttpError(413, "Poster is larger than 2 MB.");
@@ -139,7 +144,7 @@ async function createItem(request: Request) {
     await removeObjects(paths).catch(() => console.error("Library upload cleanup needed", id));
     throw error;
   }
-  const item: Item = { id, title, year, language, format, poster_type: posterKind, downloads: 0 };
+  const item: Item = { id, title, year, language, genre, content_sha256: fingerprint, format, poster_type: posterKind, downloads: 0 };
   // On an ambiguous DB timeout retain files: the INSERT might have committed.
   // Removing them could corrupt a successfully published item.
   await sb("/rest/v1/subnexa_library_items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) });
@@ -180,6 +185,63 @@ async function handle(request: Request, context: Context) {
       }));
       return json({ results });
     }
+    if (route === "admin/reports" && request.method === "GET") {
+      await admin(request);
+      const reports = await (await sb("/rest/v1/subnexa_issue_reviews?select=id,title,details,status,admin_note,created_at,updated_at&order=created_at.desc&limit=100")).json();
+      return json({items:reports});
+    }
+    if (path[0] === "admin" && path[1] === "reports" && path.length === 3 && request.method === "PATCH") {
+      await admin(request);
+      const body = await request.json().catch(()=>null);
+      if (!body || !["pending","in_progress","resolved","rejected"].includes(body.status) || typeof body.admin_note !== "string" || body.admin_note.length > 1000) throw new HttpError(400,"Invalid review update.");
+      const updated = await sb(`/rest/v1/subnexa_issue_reviews?id=eq.${validId(path[2])}`, {method:"PATCH",headers:{"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify({status:body.status,admin_note:body.admin_note,updated_at:new Date().toISOString()})});
+      return json({items:await updated.json()});
+    }
+    if (route === "community/queue" && request.method === "GET") {
+      await admin(request);
+      const rows = await (await sb("/rest/v1/subnexa_community_subtitles?select=id,title,year,format,status,created_at,admin_note&order=created_at.desc&limit=100")).json();
+      return json({items:rows});
+    }
+    if (route.startsWith("community/preview/") && request.method === "GET") {
+      await admin(request);
+      const sid = validId(path[2]);
+      const rows = await (await sb(`/rest/v1/subnexa_community_subtitles?id=eq.${sid}&select=id,format,status&limit=1`)).json() as Array<{id:string;format:string;status:string}>;
+      if (!rows.length || rows[0].status !== "pending") throw new HttpError(404,"Pending submission not found.");
+      const res = await sb(`/storage/v1/object/authenticated/${BUCKET}/community-pending/${sid}/subtitle.${rows[0].format}`);
+      const bytes = await res.arrayBuffer();
+      return new Response(bytes,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Disposition":`attachment; filename="community_review.${rows[0].format}"`}});
+    }
+    if (route.startsWith("community/review/") && request.method === "POST") {
+      await admin(request);
+      const submissionId = validId(path[2]);
+      const body = await request.json().catch(() => null);
+      if (!body || !["approved","rejected"].includes(body.status) || typeof body.note !== "string" || body.note.length > 500)
+        throw new HttpError(400,"Invalid moderation request.");
+      const list = await (await sb(`/rest/v1/subnexa_community_subtitles?id=eq.${submissionId}&select=*&limit=1`)).json() as Array<{id:string;title:string;year:string;format:"srt"|"ass";status:string;content_sha256:string}>;
+      if (!list.length || list[0].status !== "pending") throw new HttpError(409,"Submission is not pending.");
+      const item = list[0];
+      if (body.status === "rejected") {
+        await sb(`/rest/v1/subnexa_community_subtitles?id=eq.${submissionId}&status=eq.pending`, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"rejected",admin_note:body.note,updated_at:new Date().toISOString()})});
+        return json({status:"rejected"});
+      }
+      const prior = await (await sb(`/rest/v1/subnexa_library_items?content_sha256=eq.${item.content_sha256}&select=id&limit=1`)).json() as Array<{id:string}>;
+      if (prior.length) throw new HttpError(409,"Identical subtitle is already published.");
+      const original = await sb(`/storage/v1/object/authenticated/${BUCKET}/community-pending/${submissionId}/subtitle.${item.format}`);
+      const bytes = await original.arrayBuffer();
+      if (createHash("sha256").update(Buffer.from(bytes)).digest("hex") !== item.content_sha256) throw new HttpError(409,"Content hash mismatch.");
+      // Stable ID, so retrying after a partial write cannot publish extra copies.
+      const destination = `${submissionId}/subtitle.${item.format}`;
+      try { await upload(destination,bytes,"text/plain; charset=utf-8"); }
+      catch {
+        const check = await sb(`/storage/v1/object/authenticated/${BUCKET}/${destination}`);
+        if (createHash("sha256").update(Buffer.from(await check.arrayBuffer())).digest("hex") !== item.content_sha256)
+          throw new HttpError(409,"Published object conflict.");
+      }
+      // Unique SHA-256 database constraint protects racing publications.
+      await sb("/rest/v1/subnexa_library_items?on_conflict=id",{method:"POST",headers:{"Content-Type":"application/json","Prefer":"resolution=ignore-duplicates"},body:JSON.stringify({id:submissionId,title:item.title,year:item.year,language:"Sinhala",format:item.format,poster_type:"",downloads:0,content_sha256:item.content_sha256,translated_by:"Community contributor"})});
+      await sb(`/rest/v1/subnexa_community_subtitles?id=eq.${submissionId}&status=eq.pending`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"approved",published_item_id:submissionId,admin_note:body.note,updated_at:new Date().toISOString()})});
+      return json({status:"approved",item_id:submissionId});
+    }
     if (request.method === "POST" && route === "admin/check") { await admin(request); return json({ ok: true }); }
     if (route === "items" && request.method === "POST") return await createItem(request);
     if (route === "items" && request.method === "GET") {
@@ -198,8 +260,16 @@ async function handle(request: Request, context: Context) {
         throw new HttpError(400, "Invalid page or search.");
       const isSeason = route !== "browse";
       if (isSeason && !/^[a-z0-9][a-z0-9-]{0,199}$/.test(path[1])) throw new HttpError(404, "Season not found.");
-      const data = await (await rpc(isSeason ? "subnexa_library_season_url_v1" : "subnexa_library_browse_v1",
-        isSeason ? {p_key: path[1], p_offset: offset, p_limit: 60} : {p_query: query, p_offset: offset, p_limit: 60})).json();
+      const year = (url.searchParams.get("year") || "").trim();
+      const genre = (url.searchParams.get("genre") || "").trim();
+      const language = (url.searchParams.get("language") || "").trim();
+      const sort = (url.searchParams.get("sort") || "newest").trim();
+      if (year.length > 4 || genre.length > 60 || language.length > 30 || !["newest","oldest","title","year"].includes(sort))
+        throw new HttpError(400, "Invalid browse filters.");
+      const data = await (await rpc(isSeason ? "subnexa_library_season_url_v1" : "subnexa_library_browse_filtered_v2",
+        isSeason ? {p_key: path[1], p_offset: offset, p_limit: 60} : {
+          p_query: query, p_year: year, p_genre: genre, p_language: language, p_sort: sort, p_offset: offset, p_limit: 60
+        })).json();
       if (isSeason && !data.total) throw new HttpError(404, "No subtitles are available for this season.");
       return json({...data, items: (data.items as Item[]).map(publicItem)});
     }

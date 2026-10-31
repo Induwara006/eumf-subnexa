@@ -1,4 +1,5 @@
 "use client";
+import CommunitySubtitleUpload from "./CommunitySubtitleUpload";
 import Link from "next/link";
 import CommunityForm from "./CommunityForm";
 
@@ -17,6 +18,7 @@ type LibraryItem = {
   id: string | number;
   title: string;
   year: string;
+  genre?: string | null;
   language: string;
   format: "srt" | "ass";
   downloads: number;
@@ -66,6 +68,10 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
   const [seasonNumber, setSeasonNumber] = useState("");
   const [episodeNumber, setEpisodeNumber] = useState("");
   const [query, setQuery] = useState("");
+  const [filterYear, setFilterYear] = useState("");
+  const [filterGenre, setFilterGenre] = useState("");
+  const [filterLanguage, setFilterLanguage] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -85,6 +91,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
   const [ownerKey, setOwnerKey] = useState("");
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
+  const [genre, setGenre] = useState("");
   const [subFile, setSubFile] = useState<File | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [posterLink, setPosterLink] = useState("");
@@ -168,7 +175,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
       setLoading(true);
       setError("");
       try {
-        const response = await fetch(`${api}/library/${seasonKey ? `seasons/${seasonKey}` : "browse"}?q=${encodeURIComponent(query.trim())}&offset=${offset}`, {
+        const response = await fetch(`${api}/library/${seasonKey ? `seasons/${seasonKey}` : "browse"}?q=${encodeURIComponent(query.trim())}&offset=${offset}&year=${encodeURIComponent(filterYear)}&genre=${encodeURIComponent(filterGenre)}&language=${encodeURIComponent(filterLanguage)}&sort=${sortBy}`, {
           signal: controller.signal,
           cache: "no-store",
         });
@@ -188,7 +195,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [query, api, reloadTick, offset, seasonKey]);
+  }, [query, api, reloadTick, offset, seasonKey, filterYear, filterLanguage, filterGenre, sortBy]);
 
   function lockArea() {
     posterRequest.current?.abort(); setPosterBusy(false);
@@ -226,6 +233,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     const form = new FormData();
     form.append("title", title.trim());
     form.append("year", year.trim());
+    form.append("genre", genre.trim());
     form.append("season_number", seasonNumber.trim());
     form.append("episode_number", episodeNumber.trim());
     form.append("subtitle", subFile);
@@ -246,6 +254,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
       setNotice({ ok: true, text: `Added ${data.title}.` });
       setTitle("");
       setYear("");
+      setGenre("");
       setSeasonNumber(""); setEpisodeNumber("");
       setSubFile(null);
       clearPoster();
@@ -282,9 +291,11 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     }
   }
 
+  const shownItems = items;
   return (
     <div className="space-y-4">
       <CommunityForm kind="request" />
+      {!seasonKey && <CommunitySubtitleUpload />}
       {seasonKey && seasonInfo && <div className="rounded-xl border border-white/10 bg-white/5 p-5">
         <p className="text-xs uppercase tracking-widest text-primary">TV Series {seasonInfo.year && `· ${seasonInfo.year}`}</p>
         <h1 className="mt-2 text-2xl font-bold">{seasonInfo.series_title} · Season {seasonInfo.season_number}</h1>
@@ -303,20 +314,28 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         />
       </div>}
 
+      {!seasonKey && <div className="flex flex-wrap gap-2" aria-label="Filters for entire library">
+        <Input aria-label="Filter by year" placeholder="Year" className="w-24" maxLength={4} value={filterYear} onChange={e=>{ setFilterYear(e.target.value.replace(/\D/g,"")); setOffset(0); }}/>
+        <Input aria-label="Filter by genre" placeholder="Genre" className="w-32" value={filterGenre} onChange={e=>{ setFilterGenre(e.target.value); setOffset(0); }} maxLength={60}/>
+        <Input aria-label="Filter by language" placeholder="Language" className="w-32" value={filterLanguage} onChange={e=>{ setFilterLanguage(e.target.value); setOffset(0); }} maxLength={30}/>
+        <select aria-label="Sort entire library" className="rounded-md border border-white/20 bg-[#202020] p-2 text-sm" value={sortBy} onChange={e=>{ setSortBy(e.target.value); setOffset(0); }}><option value="newest">Newest (default)</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option><option value="year">Year descending</option></select>
+        {(filterYear||filterGenre||filterLanguage) && <button className="text-xs underline" onClick={()=>{setFilterYear("");setFilterGenre("");setFilterLanguage("");}}>Clear filters</button>}
+        <span className="w-full text-xs text-white/50">Filters and sorting apply to the full library catalogue.</span>
+      </div>}
       {error ? (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
       ) : loading && items.length === 0 ? (
         <div className="flex items-center justify-center gap-2 py-16 text-sm text-white/60">
           <Loader2 className="size-4 animate-spin" />Loading…
         </div>
-      ) : items.length === 0 ? (
+      ) : shownItems.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16 text-center text-sm text-white/60">
           <Film className="size-8 text-white/30" />
           {query.trim() ? `No subtitles found for "${query.trim()}".` : "No subtitles have been added yet."}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {items.map(item => (
+          {shownItems.map(item => (
             <div key={item.id} className="group flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
               <div className="relative aspect-[2/3] overflow-hidden bg-black/40">
                 <Poster item={item} api={api} />
@@ -399,6 +418,8 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
               <Input id="lib-title" value={title} disabled={uploading || posterBusy} onChange={e => { setTitle(e.target.value); setSelectedTitle(""); }} maxLength={120} placeholder="Movie or series name" />
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="lib-genre" className="text-xs">Genre (optional)</Label>
+              <Input id="lib-genre" value={genre} onChange={e=>setGenre(e.target.value)} maxLength={60} placeholder="Drama" />
               <Label htmlFor="lib-year" className="text-xs">Year (optional)</Label>
               <Input id="lib-year" value={year} onChange={e => setYear(e.target.value)} maxLength={4} inputMode="numeric" placeholder="2024" />
             </div>

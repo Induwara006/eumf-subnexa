@@ -123,12 +123,18 @@ def publish_completed(*, user, job_id, original_filename, content, output_format
         return {'saved':False, 'reason':'invalid_output'}
     from subnexa_profile import record_completed
     record_completed(user, job_id)
+    fingerprint=hashlib.sha256(body).hexdigest()
     name=clean_text(user.get('name'),120) or 'SubNexa user'
     identity=item_id(user['sub'],job_id,output_format,opening_credit)
     try:
         prior=existing(identity)
         if prior:
             return {'saved':True,'id':identity,'translated_by':prior.get('translated_by') or name,'already_exists':True}
+        # Exact duplicate content belongs to the original publication; do not create a second entry.
+        _, matched=request('GET', '/rest/v1/subnexa_library_items?content_sha256=eq.' + fingerprint + '&select=id,translated_by&limit=1')
+        duplicates=json.loads(matched)
+        if duplicates:
+            return {'saved':True,'id':duplicates[0]['id'],'translated_by':duplicates[0].get('translated_by') or name,'already_exists':True,'duplicate_content':True}
         path=f'{identity}/subtitle.{output_format}'
         status, _ = request('POST', f'/storage/v1/object/{BUCKET}/{path}', data=body,
                             headers={'Content-Type':'text/plain; charset=utf-8','x-upsert':'false'},
@@ -144,7 +150,7 @@ def publish_completed(*, user, job_id, original_filename, content, output_format
                 raise RuntimeError('Conflicting unpublished library object')
         title,year=title_from_filename(original_filename)
         row={'id':identity,'title':title,'year':year,'language':'Sinhala','format':output_format,
-             'poster_type':'','downloads':0,'translated_by':name}
+             'poster_type':'','downloads':0,'translated_by':name,'content_sha256':fingerprint}
         request('POST','/rest/v1/subnexa_library_items?on_conflict=id',payload=row,
                 headers={'Content-Type':'application/json','Prefer':'resolution=ignore-duplicates,return=minimal'})
         # Verify a timed-out/conflicting INSERT and retain original attribution.

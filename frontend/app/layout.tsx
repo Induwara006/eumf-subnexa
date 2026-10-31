@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
+import BackendWarmup from "@/components/BackendWarmup";
 
 const monaSans = localFont({
   variable: "--font-mona-sans",
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`dark ${monaSans.variable} ${bricolage.variable} ${geist.variable} ${notoSinhala.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-[#141414]">
         <TooltipProvider>{children}</TooltipProvider>
+        <BackendWarmup />
         <Toaster theme="dark" position="bottom-right" />
       </body>
     </html>
