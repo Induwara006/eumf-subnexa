@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextvars
 import hashlib
+import logging
 import os
 import re
 import secrets
@@ -29,6 +30,42 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/subnexa-auth", tags=["SubNexa Google Login"])
+# subnexa-admin-oauth-diagnostic-v3
+_auth_logger = logging.getLogger("subnexa.oauth")
+
+class _OAuthFailure(RuntimeError):
+    def __init__(self, stage: str):
+        self.stage = stage
+        super().__init__(stage)
+
+def _oauth_safe_code(exc: Exception, stage: str) -> str:
+    if isinstance(exc, _OAuthFailure):
+        return exc.stage
+    if isinstance(exc, SignatureExpired):
+        return "oauth_state_expired"
+    if isinstance(exc, BadSignature):
+        return "oauth_state_invalid"
+    if isinstance(exc, requests.RequestException):
+        return "google_network_error"
+    if isinstance(exc, ValueError):
+        return "google_invalid_response"
+    return stage if stage in {"google_token_exchange", "google_userinfo", "admin_proof"} else "oauth_unknown_error"
+
+def _popup_oauth_error(target_origin: str, safe_code: str):
+    # Only the site's approved origins may receive error messages.
+    import json as _json
+    from fastapi.responses import HTMLResponse
+    allowed = {FRONTEND, "https://subnexa.lk", "https://www.subnexa.lk", "https://eumf-subnexa.vercel.app"}
+    allowed.update(s.strip().rstrip("/") for s in os.getenv("SUBNEXA_ADMIN_ALLOWED_ORIGINS", "").split(",") if s.strip())
+    if target_origin not in allowed:
+        target_origin = FRONTEND
+    html = ("<!doctype html><html><head><meta charset='utf-8'><title>SubNexa login error</title></head><body>"
+            "<p>Google verification failed: " + safe_code + "</p><script>"
+            "if(window.opener){window.opener.postMessage({type:'subnexa-admin-oauth-error',code:"
+            + _json.dumps(safe_code) + "}," + _json.dumps(target_origin) + ");window.close()}"
+            "</script></body></html>")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
 _current_key = contextvars.ContextVar("subnexa_current_user_gemini_key", default=None)
 _current_sub = contextvars.ContextVar("subnexa_current_user_sub", default=None)
 _current_email = contextvars.ContextVar("subnexa_current_user_email", default=None)
@@ -266,27 +303,45 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
     response = RedirectResponse(FRONTEND + "/?subnexa_login=complete", status_code=302)
     stored = request.cookies.get(STATE_COOKIE)
     response.delete_cookie(STATE_COOKIE, path="/")
+    stage = "oauth_request"
+    admin_origin = None
     try:
-        if error or not code or not state or not stored:
-            raise RuntimeError("Google consent cancelled or expired")
+        if stored:
+            preliminary = _state_signer().loads(stored, max_age=600)
+            if isinstance(preliminary, dict) and preliminary.get("admin_handoff_state"):
+                admin_origin = preliminary.get("admin_handoff_origin") or FRONTEND
+    except (BadSignature, SignatureExpired, RuntimeError):
+        pass
+    try:
+        if error:
+            raise _OAuthFailure("google_consent_denied")
+        if not code or not state:
+            raise _OAuthFailure("google_callback_missing_parameters")
+        if not stored:
+            raise _OAuthFailure("oauth_state_cookie_missing")
         obj = _state_signer().loads(stored, max_age=600)
         if obj.get("nonce") != state:
-            raise RuntimeError("Invalid OAuth state")
+            raise _OAuthFailure("oauth_state_mismatch")
+        stage = "google_token_exchange"
         token_reply = requests.post(GOOGLE_TOKEN, data={
             "client_id": _env("GOOGLE_OAUTH_CLIENT_ID"),
             "client_secret": _env("GOOGLE_OAUTH_CLIENT_SECRET"),
             "code": code, "redirect_uri": _env("GOOGLE_OAUTH_REDIRECT_URI"),
             "grant_type": "authorization_code"}, timeout=15)
         if not token_reply.ok:
-            raise RuntimeError("Google rejected OAuth authorization code")
+            # Never print the OAuth authorization code or Google's response body.
+            _auth_logger.warning("OAuth google_token_exchange HTTP status=%s", token_reply.status_code)
+            raise _OAuthFailure("google_token_exchange_rejected")
         bundle = token_reply.json()
         token = bundle.get("access_token")
         if not token:
-            raise RuntimeError("Google returned no access token")
+            raise _OAuthFailure("google_access_token_missing")
+        stage = "google_userinfo"
         profile = _google_call("GET", USERINFO, token)
         sub = profile.get("sub", "")
         if not sub or not profile.get("email_verified"):
-            raise RuntimeError("Google email is not verified")
+            raise _OAuthFailure("google_profile_unverified")
+        stage = "admin_proof" if obj.get("admin_handoff_state") else "session_issue"
         if obj["mode"] == "login":
             user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", ""), "email_verified": True}
             handoff_state = obj.get("admin_handoff_state")
@@ -318,9 +373,13 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
         if exc.status is not None:
             query["subnexa_http"] = str(exc.status)
         response.headers["location"] = FRONTEND + "/?" + urlencode(query)
-    except (RuntimeError, BadSignature, SignatureExpired, ValueError, requests.RequestException):
-        # Preserve existing non-cloud behavior without disclosing tokens/errors.
-        response.headers["location"] = FRONTEND + "/?subnexa_error=connection_failed"
+    except (RuntimeError, BadSignature, SignatureExpired, ValueError, requests.RequestException) as exc:
+        safe_code = _oauth_safe_code(exc, stage)
+        # No tokens, auth codes, request URLs, cookie values, or raw exception text in logs.
+        _auth_logger.warning("OAuth callback failed: stage=%s reason=%s", stage, safe_code)
+        if admin_origin:
+            return _popup_oauth_error(admin_origin, safe_code)
+        response.headers["location"] = FRONTEND + "/?" + urlencode({"subnexa_error": "connection_failed", "subnexa_stage": safe_code})
     return response
 
 
