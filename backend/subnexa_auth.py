@@ -193,7 +193,12 @@ def _oauth_url(mode, params, response):
     nonce = secrets.token_urlsafe(32)
     state = {"nonce": nonce, "mode": mode, **params}
     state_blob = _state_signer().dumps(state)
-    response.set_cookie(STATE_COOKIE, state_blob, **_cookie_kwargs(600))
+    # OAuth state must accompany Google's top-level GET redirect callback.
+    # SameSite=Lax allows that navigation even if the normal API session cookie
+    # uses SameSite=None for cross-site frontend API requests.
+    state_cookie_options = _cookie_kwargs(600)
+    state_cookie_options["samesite"] = "lax"
+    response.set_cookie(STATE_COOKIE, state_blob, **state_cookie_options)
     scopes = BASE_SCOPES + (" " + CLOUD_SCOPE if mode == "connect" else "")
     # Explicit incremental consent; never ask for offline access / refresh tokens.
     query = dict(client_id=_env("GOOGLE_OAUTH_CLIENT_ID"),
