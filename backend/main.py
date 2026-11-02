@@ -106,9 +106,18 @@ from progress_store import get_job_id, save_progress, load_progress, PIPELINE_VE
 
 app = FastAPI(title="EUMF SubNexa API")
 
+# Phase 4A: local per-worker abuse guard; reverse proxy should enforce body limits too.
+from subnexa_phase4_guard import Phase4AbuseGuard
+app.add_middleware(Phase4AbuseGuard)
+
+# Phase 4B: optional atomic distributed limiter (enable after SQL setup).
+from subnexa_phase4_shared import SharedRateGuard
+app.add_middleware(SharedRateGuard)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://eumf-subnexa.vercel.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],

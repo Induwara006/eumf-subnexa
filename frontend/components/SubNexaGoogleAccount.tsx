@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   KeyRound,
+  LayoutDashboard,
   Loader2,
   LogOut,
   ShieldCheck,
@@ -96,6 +98,10 @@ export default function SubNexaGoogleAccount() {
             <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <p>Your account only links translation jobs to this workspace.</p>
           </div>
+
+          <Button asChild variant="outline" size="sm" className="h-8 w-full gap-2 text-xs">
+            <Link href="/admin"><LayoutDashboard className="size-3.5" />Admin Dashboard</Link>
+          </Button>
 
           <Button variant="outline" size="sm" className="h-8 w-full gap-2 text-xs" onClick={logout} disabled={busy}>
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <LogOut className="size-3.5" />}

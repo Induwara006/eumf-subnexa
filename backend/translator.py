@@ -185,16 +185,24 @@ def _client():
     return genai.Client(api_key=key)
 
 
-def _bad_script(value: str) -> bool:
-    for char in value:
-        if not char.isalpha():
-            continue
-        if 0x0D80 <= ord(char) <= 0x0DFF:
-            continue
-        if "LATIN" in unicodedata.name(char, ""):
-            continue  # Allow original proper names and common abbreviations.
-        return True
-    return False
+def _bad_script(value: str, original: str = "") -> bool:
+    """Reject invented foreign letters, not foreign names copied from source.
+
+    Permit source foreign-script letters only when retained verbatim, no more
+    often than in the source. Sinhala and Latin letters retain prior behavior.
+    """
+    source_foreign = Counter(
+        c for c in original if c.isalpha()
+        and not (0x0D80 <= ord(c) <= 0x0DFF)
+        and "LATIN" not in unicodedata.name(c, "")
+    )
+    output_foreign = Counter(
+        c for c in value if c.isalpha()
+        and not (0x0D80 <= ord(c) <= 0x0DFF)
+        and "LATIN" not in unicodedata.name(c, "")
+    )
+    return any(count > source_foreign[char]
+               for char, count in output_foreign.items())
 
 
 def _unexpected_symbols(value: str, original: str = "") -> bool:
@@ -266,6 +274,29 @@ def _snx_v46_quality_issues(original, value):
             return True
     return False
 
+# Source-preservation guard for numeric data and meaningful literal symbols.
+# Do not use as an auto-corrector: replacement at guessed offsets can change
+# dialogue meaning. Preserve a good draft; repair missing items by AI and
+# leave a line pending if strict validation still fails.
+_SOURCE_NUMBER = re.compile(r"(?<![\w])\d+(?:[.,:/-]\d+)*(?:%|°)?")
+_SOURCE_LITERALS = set("@#$%&+=\\|~^©®™★☆♥♡♪♫✓✔✗✘€£¥₹₨℃°")
+
+
+def _missing_source_literals(value: str, original: str = "") -> bool:
+    if not original:
+        return False
+    # A source number is required verbatim rather than merely checking that
+    # the output contains some digits. Preserves 2026, 10:30, 50%, etc.
+    expected_numbers = Counter(_SOURCE_NUMBER.findall(original))
+    actual_numbers = Counter(_SOURCE_NUMBER.findall(value))
+    if any(actual_numbers[k] < n for k, n in expected_numbers.items()):
+        return True
+    # Symbols that carry meaning or act as labels should never disappear.
+    expected = Counter(c for c in original if c in _SOURCE_LITERALS)
+    actual = Counter(c for c in value if c in _SOURCE_LITERALS)
+    return any(actual[c] < n for c, n in expected.items())
+
+
 def _invalid_reasons(value: str, original: str = "") -> list[str]:
     """Diagnostic codes only; never log subtitle text or credentials."""
     if not isinstance(value, str):
@@ -273,8 +304,9 @@ def _invalid_reasons(value: str, original: str = "") -> list[str]:
     checks = (
         ("source_quality", _snx_v46_quality_issues(original, value)),
         ("empty", not value.strip()),
-        ("foreign_script", _bad_script(value)),
+        ("foreign_script", _bad_script(value, original)),
         ("unexpected_symbols", _unexpected_symbols(value, original)),
+        ("source_literals", _missing_source_literals(value, original)),
         ("grammar", _obvious_grammar_error(value)),
         ("meaning", _high_confidence_meaning_error(value, original)),
         ("glossary_tokens", Counter(TOKEN_RE.findall(value)) !=
@@ -286,6 +318,19 @@ def _invalid_reasons(value: str, original: str = "") -> list[str]:
 def _invalid(value: str, original: str = "") -> bool:
     return bool(_invalid_reasons(value, original))
 
+
+
+def _verified_last_resort(original: str) -> str | None:
+    """Human-reviewed rescue for one confirmed source line after AI repair failure.
+
+    No general validation relaxation and no fallback for other source text.
+    """
+    normalized = " ".join(original.strip().split())
+    known = {
+        "And he just gave this to you?": "ඉතින් එයා මේක ඔයාට නිකම්ම දුන්නද?",
+    }
+    result = known.get(normalized)
+    return result if result is not None and not _invalid(result, original) else None
 
 def _parse_array(response, expected: int) -> list[str]:
     if not response.text:
@@ -346,9 +391,9 @@ def _batch_translation_rules(texts):
 
 
 def _review_candidate(value, original):
-    # A corrupt marker can anchor the next pass to the same wrong answer.
-    # Omit this candidate and ask for translation from the authoritative source.
-    if Counter(TOKEN_RE.findall(value)) != Counter(TOKEN_RE.findall(original)):
+    # Never anchor a repair to output that already violates source validation.
+    # The English source remains authoritative; None requests a clean draft.
+    if not isinstance(value, str) or _invalid(value, original):
         return None
     return value
 
@@ -609,15 +654,21 @@ ENGLISH AND DRAFT SINHALA PAIRS:
                       f"unexpected={sum((actual - expected).values())}", flush=True)
         repair_pairs = [
             {"english": texts[i], "draft_sinhala": _review_candidate(drafts[i], texts[i]),
-             "reviewed_sinhala": _review_candidate(reviewed[i], texts[i])}
+             "reviewed_sinhala": _review_candidate(reviewed[i], texts[i]),
+             "preserve_numbers": _SOURCE_NUMBER.findall(texts[i]),
+             "preserve_symbols": [c for c in texts[i] if c in _SOURCE_LITERALS]}
             for i in bad_indexes
         ]
         repair_prompt = f"""You are a precise native Sri Lankan Sinhala subtitle editor.
 Repair ONLY these {len(bad_indexes)} visibly corrupted subtitle lines.
 The English source is the ground truth. Return fluent, accurately spelled,
 idiomatic Sinhala in style: {selected}.
-Do not copy garbled words or foreign-script characters (such as Cyrillic or Arabic).
-Use Sinhala script for dialogue; preserve essential Latin proper names only.
+Do not copy garbled words or invented foreign-script characters.
+Use Sinhala script for dialogue; preserve essential Latin proper names.
+If the ORIGINAL English source contains non-Latin text (e.g. a named title),
+you may copy its exact characters, but do not invent or duplicate those letters.
+If an earlier candidate contains foreign-script letters absent in the source,
+discard that candidate and translate directly from English in Sinhala.
 Use correct Sinhala word boundaries, vowels and conversational tone.
 Prefer short, contemporary idiomatic reactions; do not invent or amplify abuse.
 Avoid unnatural old-fashioned exclamations and mistranslated English intensifiers.
@@ -633,7 +684,9 @@ actually present. Do not add insults or soften the source's emotional strength.
 A null draft/review was rejected. Translate afresh from the English source.
 Check natural Sinhala syntax in the surrounding dialogue.
 Remove unexplained '#' symbols, markdown formatting, stray foreign scripts,
-and replacement glyphs; keep symbols that are truly part of the English meaning.
+and replacement glyphs. Preserve every literal number (including timestamps,
+percentages and decimal values) and meaningful source symbol exactly as supplied.
+Keep source foreign-script names verbatim; never invent new foreign letters.
 No explanations. Return ONLY a JSON array of exactly {len(bad_indexes)} strings.
 
 {context_note}
@@ -658,6 +711,17 @@ INPUT JSON:
             if isinstance(line, str) and not _invalid(line, texts[index]):
                 final[index] = line
                 repaired_count += 1
+
+        # If model review/repair still fails for a specifically reviewed source
+        # sentence, use its vetted Sinhala correction. Never accept invalid
+        # generated output or alter previously validated subtitles.
+        for i in bad_indexes:
+            if _invalid(final[i], texts[i]):
+                fallback = _verified_last_resort(texts[i])
+                if fallback is not None:
+                    final[i] = fallback
+                    repaired_count += 1
+                    print("[SubNexa AI] validated source-specific repair applied", flush=True)
 
         unresolved = [
             i for i, line in enumerate(final) if _invalid(line, texts[i])

@@ -125,7 +125,17 @@ def _user_from_cookie_value(cookie: str | None):
         return None
     try:
         obj = _signer().loads(cookie, max_age=7 * 86400)
-        return obj if isinstance(obj, dict) and obj.get("sub") else None
+        # Only trust the identity signed by our server after Google's verified UserInfo check.
+        # Sessions issued before this security version must sign in again.
+        if not isinstance(obj, dict):
+            return None
+        if obj.get("email_verified") is not True:
+            return None
+        if not isinstance(obj.get("sub"), str) or not obj["sub"].strip():
+            return None
+        if not isinstance(obj.get("email"), str) or "@" not in obj["email"]:
+            return None
+        return obj
     except (BadSignature, SignatureExpired):
         return None
 
@@ -278,7 +288,7 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
         if not sub or not profile.get("email_verified"):
             raise RuntimeError("Google email is not verified")
         if obj["mode"] == "login":
-            user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", "")}
+            user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", ""), "email_verified": True}
             response.set_cookie(COOKIE_NAME, _signer().dumps(user), **_cookie_kwargs(7 * 86400))
         elif obj["mode"] == "connect":
             signed_user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
@@ -304,6 +314,208 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
         # Preserve existing non-cloud behavior without disclosing tokens/errors.
         response.headers["location"] = FRONTEND + "/?subnexa_error=connection_failed"
     return response
+
+
+@router.get("/session")
+def session(request: Request):
+    user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
+    if not user:
+        return {"signed_in": False, "connected": False,
+                "personal_key_connected": False, "personal_project_id": None}
+    row = _get_record(user["sub"])
+    # SubNexa V4.4 Cloudflare provider: connection is a SERVER CONFIGURATION
+    # status, never an assertion of remaining free Neurons or live model access.
+    using_cloudflare = cloudflare_active()
+    using_hybrid = hybrid_active()
+    # SubNexa V4.5 hybrid provider: configured != live inference success.
+    primary_ready = bool(row) or bool(authorized_gemini_key())
+    backup_ready = cloudflare_configured()
+    provider = "gemini_cloudflare" if using_hybrid else "cloudflare" if using_cloudflare else "gemini"
+    return {"signed_in": True, "name": user.get("name", ""),
+            "email": user.get("email", ""),
+            # Personal connection is distinct from server-configured providers.
+            "personal_key_connected": bool(row),
+            "personal_project_id": row[0] if row else None,
+            "provider": provider,
+            "primary_configured": primary_ready if using_hybrid else None,
+            "backup_configured": backup_ready if using_hybrid else None,
+            "connected": (primary_ready or backup_ready) if using_hybrid else
+                         (backup_ready if using_cloudflare else bool(row)),
+            "project_id": None if (using_cloudflare or using_hybrid) else (row[0] if row else None),
+            "remaining_credits": None,
+            "quota_notice": ("Gemini primary and Cloudflare backup are configured server-side; live access and remaining provider allowance are not verified."
+                if using_hybrid else
+                "Cloudflare server token configured; actual access and remaining shared daily Neurons are not verified."
+                if using_cloudflare else
+                "Google Gemini quotas are project-level. Exact remaining allowance not verified here.")}
+
+
+class ConnectRequest(BaseModel):
+    project_id: str
+    eligible_adult: bool
+    accepts_terms: bool
+    acknowledges_costs: bool
+
+
+@router.post("/connect/start")
+def connect(request: Request, form: ConnectRequest):
+    user = _user(request)
+    if request.headers.get("origin") != FRONTEND:
+        raise HTTPException(status_code=403, detail="Untrusted origin")
+    if not (form.eligible_adult and form.accepts_terms and form.acknowledges_costs):
+        raise HTTPException(400, "Cloud connection requires eligible adult consent and cost acknowledgment")
+    if not PROJECT_ID.fullmatch(form.project_id):
+        raise HTTPException(400, "Invalid Google Cloud project ID")
+    if form.project_id.isdecimal():
+        raise HTTPException(400, "Use the Cloud project ID, not the numeric project number")
+    if _get_record(user["sub"]):
+        raise HTTPException(409, "Your project is already connected")
+    from starlette.responses import Response
+    temp = Response()
+    url = _oauth_url("connect", {"sub": user["sub"], "project_id": form.project_id}, temp)
+    response = JSONResponse({"authorize_url": url})
+    for header, value in temp.raw_headers:
+        if header.lower() == b"set-cookie":
+            response.raw_headers.append((header, value))
+    return response
+
+
+@router.post("/logout")
+def logout(request: Request):
+    if request.headers.get("origin") != FRONTEND:
+        raise HTTPException(status_code=403, detail="Untrusted origin")
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(COOKIE_NAME, path="/")
+    return response
+
+
+class UserKeyASGIMiddleware:
+    """Scope-bound user key even during StreamingResponse; no global key swapping.
+
+    IMPORTANT: Apply to the FastAPI app AFTER app.include_router(router).
+    This enforces sign-in and connected key for all /translate* routes.
+    """
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        path, method = scope.get("path", ""), scope.get("method", "GET")
+        if method != "POST" or not (path == "/translate" or path.startswith("/translate-srt")):
+            return await self.app(scope, receive, send)
+        headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers", [])}
+        if headers.get("origin") != FRONTEND:
+            return await _deny(send, 403, b'{"detail":"Untrusted origin"}', headers.get("origin"))
+        jar = SimpleCookie()
+        try:
+            jar.load(headers.get("cookie", ""))
+            cookie = jar[COOKIE_NAME].value if COOKIE_NAME in jar else None
+        except Exception:
+            cookie = None
+        user = _user_from_cookie_value(cookie)
+        if not user:
+            return await _deny(send, 401, b'{"detail":"Sign in with Google first"}', headers.get("origin"))
+        # SubNexa V4.5 hybrid provider: login is still mandatory; an authorized
+        # per-user Gemini key or explicitly configured site key can be primary.
+        # Cloudflare backup uses the site's shared quota, never a personal quota.
+        if hybrid_active():
+            row = _get_record(user["sub"])
+            if not (row or hybrid_configured()):
+                return await _deny(send, 503, b'{"detail":"Neither Gemini nor Cloudflare is configured"}', headers.get("origin"))
+            key_token = None
+            if row:
+                try:
+                    decrypted = _cipher().decrypt(row[3]).decode()
+                    key_token = _current_key.set(decrypted)
+                except Exception:
+                    # An authorized site key or Cloudflare may still be available.
+                    if not hybrid_configured():
+                        return await _deny(send, 503, b'{"detail":"No readable AI credentials are available"}', headers.get("origin"))
+            email_token = _current_email.set(user.get("email", ""))
+            sub_token = _current_sub.set(user["sub"])
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                _current_email.reset(email_token)
+                _current_sub.reset(sub_token)
+                if key_token is not None:
+                    _current_key.reset(key_token)
+            return
+        # SubNexa V4.4 Cloudflare provider: maintain login and per-user
+        # translation progress isolation, without requiring a Gemini key.
+        if cloudflare_active():
+            if not cloudflare_configured():
+                return await _deny(send, 503, b'{"detail":"Cloudflare server configuration is missing"}', headers.get("origin"))
+            email_token = _current_email.set(user.get("email", ""))
+            sub_token = _current_sub.set(user["sub"])
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                _current_email.reset(email_token)
+                _current_sub.reset(sub_token)
+            return
+        row = _get_record(user["sub"])
+        if not row:
+            return await _deny(send, 403, b'{"detail":"Connect an eligible Google Cloud project first"}', headers.get("origin"))
+        try:
+            key = _cipher().decrypt(row[3]).decode()
+        except Exception:
+            return await _deny(send, 503, b'{"detail":"Connected key cannot be read"}', headers.get("origin"))
+        token = _current_key.set(key)
+        email_token = _current_email.set(user.get("email", ""))
+        sub_token = _current_sub.set(user["sub"])
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _current_email.reset(email_token)
+            _current_sub.reset(sub_token)
+            _current_key.reset(token)
+
+
+async def _deny(send, status, body, origin=None):
+    # Explicit CORS only for the configured frontend; do not reflect arbitrary origins.
+    # This middleware returns before the application's regular CORSMiddleware runs.
+    response_headers = [(b"content-type", b"application/json"),
+                        (b"content-length", str(len(body)).encode())]
+    if origin == FRONTEND:
+        response_headers.extend([
+            (b"access-control-allow-origin", FRONTEND.encode("utf-8")),
+            (b"access-control-allow-credentials", b"true"),
+            (b"vary", b"Origin"),
+        ])
+    await send({"type": "http.response.start", "status": status,
+                "headers": response_headers})
+    await send({"type": "http.response.body", "body": body})
+
+# Admin handoff: top-level popup to Render sends a short-lived signed assertion to Vercel.
+# Requires SUBNEXA_ADMIN_BRIDGE_SECRET (same secret on Render and Vercel, 32+ chars).
+@router.get("/admin/handoff")
+def admin_handoff(request: Request, state: str = ""):
+    import base64, hmac, json
+    from fastapi.responses import HTMLResponse
+    user = _user(request)
+    allowed = {e.strip().lower() for e in os.getenv("SUBNEXA_ADMIN_EMAILS", "").split(",") if e.strip()}
+    email = str(user.get("email", "")).strip().lower()
+    if not allowed or email not in allowed or user.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail="Admin access denied")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", state):
+        raise HTTPException(status_code=400, detail="Invalid handoff state")
+    secret = _env("SUBNEXA_ADMIN_BRIDGE_SECRET")
+    if len(secret) < 32:
+        raise HTTPException(status_code=503, detail="Admin bridge not configured")
+    payload = {"sub": user["sub"], "email": email, "verified": True,
+               "iat": int(time.time()), "state": state, "aud": "subnexa-vercel-admin-v1"}
+    body = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
+    signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
+    token = body + "." + base64.urlsafe_b64encode(signature).decode().rstrip("=")
+    # json.dumps prevents injecting token/URL into the script; only trusted FRONTEND origin receives message.
+    target = FRONTEND
+    html = ("<!doctype html><meta charset='utf-8'><title>SubNexa admin verification</title>"
+            "<script>if(window.opener){window.opener.postMessage({type:'subnexa-admin-proof',token:"
+            + json.dumps(token) + ",state:" + json.dumps(state) + "}," + json.dumps(target)
+            + ");window.close()}else{document.body.textContent='Open verification from the SubNexa admin page'}</script>")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/session")

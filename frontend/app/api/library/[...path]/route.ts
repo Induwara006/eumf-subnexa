@@ -45,9 +45,91 @@ function publicItem(item: Item) {
     poster_url: item.poster_type ? `/library/items/${item.id}/poster` : null,
     download_url: `/library/items/${item.id}/download` };
 }
-async function admin(request: Request) {
+function verifyAdminProof(request: Request) {
+  const token = request.headers.get("x-subnexa-admin-proof") || "";
+  const secret = process.env.SUBNEXA_ADMIN_BRIDGE_SECRET || "";
+  if (secret.length < 32 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))
+    throw new HttpError(401, "Verify Google admin login first.");
+  const [body, signature] = token.split(".");
+  const actual = createHmac("sha256", secret).update(body).digest();
+  let provided: Buffer;
+  try { provided = Buffer.from(signature, "base64url"); } catch { throw new HttpError(401, "Invalid admin proof."); }
+  if (provided.length !== actual.length || !timingSafeEqual(provided, actual))
+    throw new HttpError(401, "Invalid admin proof.");
+  let payload: { sub?: string; email?: string; verified?: boolean; iat?: number; aud?: string };
+  try { payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")); }
+  catch { throw new HttpError(401, "Invalid admin proof."); }
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.aud !== "subnexa-vercel-admin-v1" || payload.verified !== true ||
+      !payload.sub || !payload.email || !Number.isInteger(payload.iat) ||
+      payload.iat! > now + 10 || now - payload.iat! > 90)
+    throw new HttpError(401, "Expired or invalid admin proof.");
+  const allowed = (process.env.SUBNEXA_ADMIN_EMAILS || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+  if (!allowed.includes(payload.email.toLowerCase())) throw new HttpError(403, "Admin access denied.");
+  if (!/^[A-Za-z0-9_-]{16,96}$/.test((payload as {state?:string}).state || "")) throw new HttpError(401, "Invalid admin proof state.");
+  return payload as typeof payload & { state: string };
+}
+// Phase 3: short-lived, server-only session; the browser cannot read it.
+const ADMIN_COOKIE = "subnexa_admin_v3";
+const ADMIN_SESSION_SECONDS = 15 * 60;
+function sessionSignature(body: string) {
+  const secret = process.env.SUBNEXA_ADMIN_BRIDGE_SECRET || "";
+  if (secret.length < 32) throw new HttpError(503, "Admin bridge not configured.");
+  return createHmac("sha256", secret).update("admin-session-v3." + body).digest("base64url");
+}
+async function sessionCookie(request: Request) {
+  const all = request.headers.get("cookie") || "";
+  const raw = all.split(";").map(x => x.trim()).find(x => x.startsWith(ADMIN_COOKIE + "="))?.slice(ADMIN_COOKIE.length + 1) || "";
+  const parts = raw.split(".");
+  if (parts.length !== 2 || !/^[A-Za-z0-9_-]+$/.test(parts[0]) || !/^[A-Za-z0-9_-]+$/.test(parts[1]))
+    throw new HttpError(401, "Admin session expired. Unlock again.");
+  const expected = Buffer.from(sessionSignature(parts[0]), "base64url");
+  const supplied = Buffer.from(parts[1], "base64url");
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied))
+    throw new HttpError(401, "Invalid admin session.");
+  let data: { sub?: string; email?: string; exp?: number; aud?: string; jti?: string };
+  try { data = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8")); }
+  catch { throw new HttpError(401, "Invalid admin session."); }
+  const now = Math.floor(Date.now() / 1000);
+  const allowed = (process.env.SUBNEXA_ADMIN_EMAILS || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+  if (data.aud !== "subnexa-admin-session-v3" || !data.sub || !data.email || !/^[0-9a-f-]{36}$/.test(data.jti || "") ||
+      !Number.isSafeInteger(data.exp) || data.exp! <= now || data.exp! > now + ADMIN_SESSION_SECONDS ||
+      !allowed.includes(data.email.toLowerCase())) throw new HttpError(401, "Admin session expired. Unlock again.");
+  // Revocation is checked from Supabase on every privileged request, across all Vercel instances.
+  const hash = createHash("sha256").update("subnexa-admin-session-revoke-v1:" + data.jti).digest("hex");
+  const rows = await (await sb(`/rest/v1/subnexa_admin_session_revocations?session_hash=eq.${hash}&select=session_hash&limit=1`)).json() as Array<{session_hash:string}>;
+  if (rows.length) throw new HttpError(401, "Admin session revoked. Unlock again.");
+  return data;
+}
+function issueSession(sub: string, email: string) {
+  const body = Buffer.from(JSON.stringify({sub,email,jti:randomUUID(),aud:"subnexa-admin-session-v3",
+    exp:Math.floor(Date.now()/1000) + ADMIN_SESSION_SECONDS})).toString("base64url");
+  return `${ADMIN_COOKIE}=${body}.${sessionSignature(body)}; Path=/api/library; HttpOnly; SameSite=Strict; Max-Age=${ADMIN_SESSION_SECONDS}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+}
+async function consumeAdminProof(state: string) {
+  // Unique hashed nonce in Supabase gives atomic at-most-once redemption across instances.
+  // Database table and permissions are installed using PHASE3_SETUP.sql.
+  const {url,key} = config();
+  const nonceHash = createHash("sha256").update("subnexa-admin-proof-v3:" + state).digest("hex");
+  let response: Response;
+  try {
+    response = await fetch(`${url}/rest/v1/subnexa_admin_proof_consumptions`, {
+      method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000),
+      headers: {apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json","Prefer":"return=minimal"},
+      body: JSON.stringify({nonce_hash:nonceHash})
+    });
+  } catch { throw new HttpError(503, "Admin replay store unavailable. Retry verification."); }
+  if (response.status === 409) throw new HttpError(401, "Admin proof already used. Verify again.");
+  if (!response.ok) {
+    console.error("Admin replay store unavailable",response.status);
+    throw new HttpError(503, "Admin replay store unavailable. Apply Phase 3 SQL configuration.");
+  }
+}
+async function admin(request: Request, exchange = false) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) throw new HttpError(403, "Untrusted origin.");
+  if (request.headers.get("sec-fetch-site") === "cross-site") throw new HttpError(403, "Untrusted site.");
+  const identity = exchange ? verifyAdminProof(request) : await sessionCookie(request);
   const expected = process.env.SUBNEXA_LIBRARY_ADMIN_KEY || "";
   if (expected.length < 12) throw new HttpError(503, "Library uploads are disabled. Configure the owner password on the server.");
   const supplied = request.headers.get("x-library-admin-key") || "";
@@ -59,6 +141,8 @@ async function admin(request: Request) {
   const allowed = await (await rpc("subnexa_library_admin_attempt", { ip_hash_arg: ipHash, correct })).json();
   if (allowed !== true) throw new HttpError(429, "Too many wrong passwords. Try again in 10 minutes.");
   if (!correct) throw new HttpError(403, "Wrong password.");
+  if (exchange) await consumeAdminProof((identity as {state: string}).state);
+  return identity;
 }
 function validId(id: string) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new HttpError(404, "Subtitle not found.");
@@ -150,8 +234,41 @@ async function createItem(request: Request) {
   await sb("/rest/v1/subnexa_library_items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) });
   return json(publicItem(item));
 }
+// Phase 4B: bounded read of request bytes, including chunked/missing-length bodies.
+// Reads before any privileged action; avoids trusting Content-Length alone.
+async function boundedRequest(request: Request): Promise<Request> {
+  if (!['POST','PUT','PATCH','DELETE'].includes(request.method)) return request;
+  const type = request.headers.get('content-type') || '';
+  const multipart = type.toLowerCase().startsWith('multipart/form-data');
+  const limit = multipart ? 5 * 1024 * 1024 : 16 * 1024;
+  const claimed = request.headers.get('content-length');
+  if (claimed !== null && (!/^\d+$/.test(claimed) || Number(claimed) > limit))
+    throw new HttpError(413, 'Request body exceeds security limit.');
+  if (!request.body) return request;
+  const reader = request.body.getReader();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel().catch(() => {});
+        throw new HttpError(413, 'Request body exceeds security limit.');
+      }
+      parts.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const part of parts) { body.set(part, offset); offset += part.byteLength; }
+  return new Request(request.url, { method: request.method, headers: request.headers, body, duplex: 'half' } as RequestInit & { duplex: 'half' });
+}
+
 async function handle(request: Request, context: Context) {
   try {
+    request = await boundedRequest(request);
     const { path } = await context.params;
     const route = path.join("/");
     if (request.method === "POST" && route === "poster/import") {
@@ -184,6 +301,12 @@ async function handle(request: Request, context: Context) {
         poster_url: `https://image.tmdb.org/t/p/w500${x.poster_path}`
       }));
       return json({ results });
+    }
+    if (route === "admin/requests" && request.method === "GET") {
+      await admin(request);
+      // select=* works whatever columns the table has; only the fields below are returned.
+      const rows = await (await sb("/rest/v1/subnexa_issue_reviews?select=*&order=created_at.desc&limit=200")).json() as Array<Record<string, unknown>>;
+      return json({items: rows.map(r => ({id:r.id,title:r.title,details:r.details,status:r.status,admin_note:r.admin_note ?? null,created_at:r.created_at,kind:typeof r.kind === "string" ? r.kind : null}))});
     }
     if (route === "admin/reports" && request.method === "GET") {
       await admin(request);
@@ -242,7 +365,31 @@ async function handle(request: Request, context: Context) {
       await sb(`/rest/v1/subnexa_community_subtitles?id=eq.${submissionId}&status=eq.pending`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"approved",published_item_id:submissionId,admin_note:body.note,updated_at:new Date().toISOString()})});
       return json({status:"approved",item_id:submissionId});
     }
-    if (request.method === "POST" && route === "admin/check") { await admin(request); return json({ ok: true }); }
+    if (request.method === "POST" && route === "admin/check") {
+      const identity = await admin(request, true);
+      const response = json({ ok: true });
+      response.headers.set("Set-Cookie", issueSession(identity.sub!, identity.email!));
+      return response;
+    }
+    if (request.method === "POST" && route === "admin/logout") {
+      const origin = request.headers.get("origin");
+      if (origin && origin !== new URL(request.url).origin) throw new HttpError(403,"Untrusted origin.");
+      if (request.headers.get("sec-fetch-site") === "cross-site") throw new HttpError(403,"Untrusted site.");
+      // If a valid session is present, revoke it BEFORE telling the browser logout succeeded.
+      // A failed database write fails closed rather than claiming server-side logout.
+      const cookie = request.headers.get("cookie") || "";
+      if (cookie.split(";").some(x=>x.trim().startsWith(ADMIN_COOKIE+"="))) {
+        const identity = await sessionCookie(request);
+        const hash = createHash("sha256").update("subnexa-admin-session-revoke-v1:" + identity.jti).digest("hex");
+        await sb("/rest/v1/subnexa_admin_session_revocations?on_conflict=session_hash", {
+          method:"POST",headers:{"Content-Type":"application/json","Prefer":"resolution=ignore-duplicates,return=minimal"},
+          body:JSON.stringify({session_hash:hash, expires_at:new Date(identity.exp! * 1000).toISOString()})
+        });
+      }
+      const response = json({ok:true});
+      response.headers.set("Set-Cookie", `${ADMIN_COOKIE}=; Path=/api/library; HttpOnly; SameSite=Strict; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+      return response;
+    }
     if (route === "items" && request.method === "POST") return await createItem(request);
     if (route === "items" && request.method === "GET") {
       const url = new URL(request.url);
@@ -274,6 +421,43 @@ async function handle(request: Request, context: Context) {
       return json({...data, items: (data.items as Item[]).map(publicItem)});
     }
     if (path[0] !== "items" || !path[1] || path.length > 3) throw new HttpError(404, "Not found.");
+    // SubNexa poster update v1: overwrite only the poster; never touch subtitle objects or counters.
+    if (request.method === "PATCH" && path[0] === "items" && path.length === 3 && path[2] === "poster") {
+      await admin(request);
+      const item = await getItem(path[1]);
+      if (Number(request.headers.get("content-length") || 0) > MAX + 65536) throw new HttpError(413, "Poster is larger than 2 MB.");
+      let form: FormData;
+      try { form = await request.formData(); } catch { throw new HttpError(400, "Invalid poster upload."); }
+      const image = form.get("poster_image");
+      if (!(image instanceof File) || !image.name || image.size < 1 || image.size > MAX)
+        throw new HttpError(400, "Choose a JPG, PNG or WebP poster up to 2 MB.");
+      const bytes = new Uint8Array(await image.arrayBuffer());
+      const kind = posterType(bytes);
+      if (!kind) throw new HttpError(400, "Poster must be a JPG, PNG or WebP image.");
+      const currentPath = item.poster_type ? `${item.id}/poster.${item.poster_type}` : "";
+      const nextPath = `${item.id}/poster.${kind}`;
+      // Upsert keeps a stable URL while supporting same-format replacements.
+      await sb(`/storage/v1/object/${BUCKET}/${nextPath}`, {
+        method: "POST", headers: { "Content-Type": kind === "jpg" ? "image/jpeg" : `image/${kind}`, "x-upsert": "true" }, body: bytes
+      });
+      await sb(`/rest/v1/subnexa_library_items?id=eq.${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json", "Prefer": "return=minimal" }, body: JSON.stringify({ poster_type: kind })
+      });
+      if (currentPath && currentPath !== nextPath) await removeObjects([currentPath]).catch(() => console.error("Old poster cleanup pending", item.id));
+      return json({ ok: true, poster_url: `/library/items/${item.id}/poster`, cache_version: Date.now() });
+    }
+    /* SUBNEXA_RENAME_V1: change only the title of one library item. */
+    if (request.method === "PATCH" && path.length === 2) {
+      await admin(request);
+      const item = await getItem(path[1]);
+      const body = await request.json().catch(() => null);
+      const title = body && typeof body.title === "string" ? body.title.trim() : "";
+      if (!title || title.length > 120 || /[\x00-\x1f\x7f]/.test(title)) throw new HttpError(400, "Title must be 1-120 characters with no control characters.");
+      await sb(`/rest/v1/subnexa_library_items?id=eq.${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json", "Prefer": "return=minimal" }, body: JSON.stringify({ title })
+      });
+      return json({ ok: true, id: item.id, title });
+    }
     if (request.method === "DELETE" && path.length === 2) {
       await admin(request);
       const item = await getItem(path[1]);
@@ -308,3 +492,4 @@ async function handle(request: Request, context: Context) {
 export const GET = handle;
 export const POST = handle;
 export const DELETE = handle;
+export const PATCH = handle;

@@ -1,5 +1,6 @@
 "use client";
 import CommunitySubtitleUpload from "./CommunitySubtitleUpload";
+import { ensureAdminProof, adminProofHeaders, clearAdminProof, clearAdminSession, markAdminSession } from "@/lib/admin-proof";
 import Link from "next/link";
 import CommunityForm from "./CommunityForm";
 
@@ -120,7 +121,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
       setSearchBusy(true);
       try {
         const response = await fetch(`/api/library/posters/search?q=${encodeURIComponent(title.trim())}`, {
-          headers: { "X-Library-Admin-Key": ownerKey }, signal: controller.signal, cache: "no-store"
+          headers: { ...adminProofHeaders(ownerKey) }, signal: controller.signal, cache: "no-store"
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || "Poster search failed.");
@@ -148,7 +149,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     setPosterBusy(true); setPosterError("");
     try {
       const response = await fetch("/api/library/poster/import", { method: "POST",
-        headers: { "Content-Type": "application/json", "X-Library-Admin-Key": ownerKey },
+        headers: { "Content-Type": "application/json", ...adminProofHeaders(ownerKey) },
         body: JSON.stringify({ url }), signal: controller.signal });
       if (!response.ok) { const data = await response.json(); throw new Error(data.detail || "Image import failed."); }
       const blob = await response.blob();
@@ -198,6 +199,8 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
   }, [query, api, reloadTick, offset, seasonKey, filterYear, filterLanguage, filterGenre, sortBy]);
 
   function lockArea() {
+    clearAdminSession();
+    void fetch("/api/library/admin/logout", {method:"POST",cache:"no-store"}).catch(()=>{});
     posterRequest.current?.abort(); setPosterBusy(false);
     setUnlocked(false);
     setOwnerKey("");
@@ -207,14 +210,16 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
   async function unlock() {
     if (!ownerKey || unlocking) return;
     setUnlocking(true);
+    try { await ensureAdminProof(); } catch (err) { setUnlockError(err instanceof Error ? err.message : "Admin login verification failed"); setUnlocking(false); return; }
     setUnlockError("");
     try {
       const response = await fetch(`${api}/library/admin/check`, {
         method: "POST",
-        headers: { "X-Library-Admin-Key": ownerKey },
+        headers: { ...adminProofHeaders(ownerKey) },
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || "Could not verify the password.");
+      clearAdminProof(); markAdminSession();
       setUnlocked(true);
       setNotice(null);
     } catch (err) {
@@ -243,7 +248,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     try {
       const response = await fetch(`${api}/library/items`, {
         method: "POST",
-        headers: { "X-Library-Admin-Key": ownerKey },
+        headers: { ...adminProofHeaders(ownerKey) },
         body: form,
       });
       const data = await response.json().catch(() => ({}));
@@ -277,7 +282,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     try {
       const response = await fetch(`${api}/library/items/${item.id}`, {
         method: "DELETE",
-        headers: { "X-Library-Admin-Key": ownerKey },
+        headers: { ...adminProofHeaders(ownerKey) },
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -291,6 +296,117 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     }
   }
 
+  // SubNexa poster editor v1
+  const [editingPoster, setEditingPoster] = useState<LibraryItem | null>(null);
+  const [savingPoster, setSavingPoster] = useState(false);
+  const [posterEditError, setPosterEditError] = useState("");
+  const editorInput = useRef<HTMLInputElement>(null);
+  async function saveExistingPoster(item: LibraryItem, file: File) {
+    if (!unlocked || savingPoster) return;
+    setSavingPoster(true); setPosterEditError("");
+    try {
+      const form = new FormData(); form.append("poster_image", file);
+      const response = await fetch(`/api/library/items/${item.id}/poster`, {
+        method: "PATCH", headers: { "X-Library-Admin-Key": ownerKey }, body: form
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Poster update failed.");
+      setEditingPoster(null);
+      setNotice({ ok: true, text: `Poster updated for ${item.title}.` });
+      setReloadTick(n => n + 1);
+      window.dispatchEvent(new Event("subnexa-library-updated"));
+    } catch (err) {
+      setPosterEditError(err instanceof Error ? err.message : "Poster update failed.");
+    } finally { setSavingPoster(false); }
+  }
+  // SubNexa unified poster picker v3: discover/import an image, then use the existing authorized PATCH.
+  const [seasonPosterEditing, setSeasonPosterEditing] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerResults, setPickerResults] = useState<PosterMatch[]>([]);
+  const [pickerBusy, setPickerBusy] = useState(false);
+  const [pickerError, setPickerError] = useState("");
+  async function searchPicker() {
+    if (pickerQuery.trim().length < 2) { setPickerError("Enter at least two characters."); return; }
+    setPickerBusy(true); setPickerError(""); setPickerResults([]);
+    try {
+      const response = await fetch(`/api/library/posters/search?q=${encodeURIComponent(pickerQuery.trim())}`,
+        {headers:adminProofHeaders(ownerKey),cache:"no-store"});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "TMDB search failed.");
+      setPickerResults(Array.isArray(data.results) ? data.results : []);
+      if (!data.results?.length) setPickerError("No matching poster found. Try another title or upload a file.");
+    } catch (e) { setPickerError(e instanceof Error ? e.message : "TMDB search failed."); }
+    finally { setPickerBusy(false); }
+  }
+  async function usePickerUrl(url: string) {
+    if (pickerBusy || savingPoster || seasonPosterBusy || !unlocked) return;
+    setPickerBusy(true); setPickerError("");
+    try {
+      const imported = await fetch("/api/library/poster/import", {method:"POST",
+        headers:{"Content-Type":"application/json",...adminProofHeaders(ownerKey)},body:JSON.stringify({url})});
+      const detail = imported.ok ? null : await imported.json().catch(()=>({}));
+      if (!imported.ok) throw new Error(detail?.detail || "Unable to import image.");
+      const blob = await imported.blob();
+      const mime = blob.type.split(";")[0];
+      if (!["image/jpeg","image/png","image/webp"].includes(mime)) throw new Error("Image format not supported.");
+      const ext = mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : "webp";
+      const file = new File([blob],`poster.${ext}`,{type:mime});
+      if (file.size > 2*1024*1024) throw new Error("Poster exceeds 2 MB.");
+      if (seasonPosterEditing) { await updateSeasonPosters(file); setSeasonPosterEditing(false); }
+      else if (editingPoster) { await saveExistingPoster(editingPoster,file); }
+    } catch (e) { setPickerError(e instanceof Error ? e.message : "Poster import failed."); }
+    finally { setPickerBusy(false); }
+  }
+  function openPosterPicker(item: LibraryItem | null) {
+    setEditingPoster(item); setSeasonPosterEditing(!item); setPickerError(""); setPickerResults([]);
+    setPickerQuery(item?.title || seasonInfo?.series_title || ""); setPosterEditError("");
+  }
+
+  // SubNexa season poster editor v2 — use the existing verified-admin poster endpoint.
+  const [seasonPosterBusy, setSeasonPosterBusy] = useState(false);
+  const [seasonPosterStatus, setSeasonPosterStatus] = useState("");
+  async function updateSeasonPosters(file: File) {
+    if (!seasonKey || !unlocked || seasonPosterBusy) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024) {
+      setSeasonPosterStatus("Choose a JPG, PNG or WebP file (max 2 MB)."); return;
+    }
+    setSeasonPosterBusy(true);
+    setSeasonPosterStatus("Loading season episodes…");
+    let completed = 0;
+    try {
+      // Season API is read-only and paginated; do not assume first page contains all episodes.
+      const all: LibraryItem[] = [];
+      for (let offset = 0; offset < 1200; offset += 60) {
+        const response = await fetch(`/api/library/seasons/${encodeURIComponent(seasonKey)}?offset=${offset}`, {cache:"no-store"});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || "Could not load season episodes.");
+        const page = (data.items || []) as LibraryItem[];
+        if (!Array.isArray(page) || page.some(item => typeof item.id !== "string" || !/^[0-9a-f-]{36}$/i.test(item.id))) throw new Error("Unexpected season data.");
+        all.push(...page);
+        if (all.length >= Number(data.total || 0)) break;
+        if (!page.length) throw new Error("Season pagination returned no data.");
+      }
+      if (!all.length || all.length > 1200) throw new Error("No episodes found or season exceeds safe update limit.");
+      if (!window.confirm(`Apply the same poster to all ${all.length} subtitle entries in this season? Existing individual episode posters will be replaced.`)) {
+        setSeasonPosterStatus("Cancelled. No posters changed."); return;
+      }
+      for (const item of all) {
+        setSeasonPosterStatus(`Updating posters: ${completed}/${all.length}`);
+        const form = new FormData(); form.append("poster_image", file);
+        const response = await fetch(`/api/library/items/${item.id}/poster`, {method:"PATCH",headers:adminProofHeaders(ownerKey),body:form});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || `Could not update ${item.title}.`);
+        completed++;
+      }
+      setSeasonPosterStatus(`Updated all ${completed} posters. Season and episode images are refreshed.`);
+      setReloadTick(v => v + 1);
+      window.dispatchEvent(new Event("subnexa-library-updated"));
+    } catch (error) {
+      setSeasonPosterStatus(`Updated ${completed} poster(s). ${error instanceof Error ? error.message : "Poster update failed."} Existing updates were saved; retry may be needed.`);
+      setReloadTick(v => v + 1);
+    } finally { setSeasonPosterBusy(false); }
+  }
+
   const shownItems = items;
   return (
     <div className="space-y-4">
@@ -300,6 +416,15 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         <p className="text-xs uppercase tracking-widest text-primary">TV Series {seasonInfo.year && `· ${seasonInfo.year}`}</p>
         <h1 className="mt-2 text-2xl font-bold">{seasonInfo.series_title} · Season {seasonInfo.season_number}</h1>
         <p className="mt-2 text-sm text-white/60">{seasonInfo.episode_count} episodes · {total} subtitle files. Choose an episode below.</p>
+      </div>}
+      {seasonKey && <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm">
+        {ownerOpen && unlocked ? <div className="flex flex-wrap items-center gap-3">
+          <span className="text-white/80">Season poster: apply one image to every episode, or edit individual posters below.</span>
+          <Button type="button" size="sm" disabled={seasonPosterBusy} onClick={() => openPosterPicker(null)}>
+            {seasonPosterBusy ? "Updating…" : "Set season poster"}
+          </Button>
+        </div> : <span className="text-white/60">To change season or episode posters, open <strong>Restricted area</strong> below the episode list and unlock with your verified admin login.</span>}
+        {seasonPosterStatus && <p role="status" className="mt-2 text-xs text-white/75">{seasonPosterStatus}</p>}
       </div>}
       {!seasonKey && <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/50" />
@@ -351,13 +476,19 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
                   {item.kind === "season" && <p className="text-[11px] text-white/70">{item.episode_count} episodes · {item.file_count} files</p>}
                   {item.kind !== "season" && item.translated_by && <p className="truncate text-[11px] text-white/70" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
                 </div>
-                <div className="mt-auto flex items-center gap-2">
-                  <Button asChild size="sm" className="h-8 flex-1 gap-1.5 text-xs">
+                <div className="mt-auto flex flex-wrap items-center gap-2">
+                  <Button asChild size="sm" className="h-8 w-full gap-1.5 text-xs">
                     {item.kind === "season" ? <Link href={`/library/tv-series/${item.season_slug || item.season_key}`}>View episodes</Link> :
                     <a href={`${api}${item.download_url}`} download>
                       <Download className="size-3.5" />Download {seasonKey ? item.format.toUpperCase() : ""}
                     </a>}
                   </Button>
+                  {ownerOpen && unlocked && item.kind !== "season" && (
+                    <Button type="button" size="sm" variant="outline" className="h-8 min-w-0 flex-1 px-2 text-[11px]"
+                      disabled={savingPoster} onClick={() => openPosterPicker(item)}>
+                      {item.poster_url ? "Change poster" : "Add poster"}
+                    </Button>
+                  )}
                   {ownerOpen && unlocked && item.kind !== "season" ? (
                     <Button size="icon" variant="outline" className="size-8 shrink-0" onClick={() => deleteItem(item)} aria-label={`Delete ${item.title}`}>
                       <Trash2 className="size-3.5" />
@@ -369,6 +500,33 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
           ))}
         </div>
       )}
+
+      {(editingPoster || seasonPosterEditing) && ownerOpen && unlocked && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" role="presentation">
+        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-white/20 bg-[#252525] p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Edit library poster">
+          <h2 className="mb-2 text-base font-semibold text-white">{seasonPosterEditing ? `Set season poster: ${seasonInfo?.series_title || seasonKey}` : `${editingPoster?.poster_url ? "Change" : "Add"} poster: ${editingPoster?.title}`}</h2>
+          <p className="mb-3 text-xs text-white/65">Search TMDB, import an image URL, or upload a JPG/PNG/WebP (max 2 MB).</p>
+          {seasonPosterEditing && <p className="mb-3 text-xs text-amber-200">This replaces posters on every subtitle entry in this season, after confirmation.</p>}
+          <div className="mb-3 flex gap-2">
+            <Input aria-label="Search TMDB posters" value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Movie or TV series title" onKeyDown={e => {if(e.key === "Enter") {e.preventDefault();void searchPicker();}}}/>
+            <Button type="button" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => void searchPicker()}>{pickerBusy ? "Searching…" : "TMDB Search"}</Button>
+          </div>
+          {!!pickerResults.length && <div className="mb-4 grid max-h-60 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+            {pickerResults.map(match => <button type="button" key={`${match.type}-${match.id}`} className="rounded border border-white/20 p-1 text-left hover:border-red-500 disabled:opacity-50" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => void usePickerUrl(match.poster_url)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={match.poster_url} alt={match.title} className="aspect-[2/3] w-full rounded object-cover"/>
+              <span className="block truncate text-[10px] text-white">{match.title} {match.year}</span>
+            </button>)}
+          </div>}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Input ref={editorInput} type="file" accept="image/jpeg,image/png,image/webp" className="max-w-xs" disabled={pickerBusy || savingPoster || seasonPosterBusy}
+              onChange={e => {const file=e.target.files?.[0];if(file){if(seasonPosterEditing){void updateSeasonPosters(file).then(()=>setSeasonPosterEditing(false));} else if(editingPoster){void saveExistingPoster(editingPoster,file);}}e.target.value="";}}/>
+            <Button variant="outline" type="button" size="sm" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => {const url=window.prompt("Direct image URL (JPG/PNG/WebP):");if(url?.trim()) void usePickerUrl(url.trim());}}>Use image URL</Button>
+            <Button variant="ghost" type="button" size="sm" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => {setEditingPoster(null);setSeasonPosterEditing(false);}}>Close</Button>
+          </div>
+          {(pickerBusy || savingPoster || seasonPosterBusy) && <p className="text-xs text-white/75" role="status">Working on poster…</p>}
+          {(pickerError || posterEditError) && <p className="mt-2 text-xs text-red-400" role="alert">{pickerError || posterEditError}</p>}
+        </div>
+      </div>}
 
       {total > 60 && <nav aria-label="Library pages" className="flex items-center justify-between gap-3">
         <Button variant="outline" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0,offset-60))}>Previous</Button>
