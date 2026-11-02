@@ -289,13 +289,15 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
             raise RuntimeError("Google email is not verified")
         if obj["mode"] == "login":
             user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", ""), "email_verified": True}
-            response.set_cookie(COOKIE_NAME, _signer().dumps(user), **_cookie_kwargs(7 * 86400))
-            # Continue the admin popup after Google's verified login.
             handoff_state = obj.get("admin_handoff_state")
             if handoff_state is not None:
-                if not isinstance(handoff_state, str) or not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", handoff_state):
-                    raise RuntimeError("Invalid admin handoff state")
-                response.headers["location"] = "/subnexa-auth/admin/handoff?state=" + handoff_state
+                # After Google verifies identity, send a one-time proof straight to the opener.
+                # A second popup redirect sometimes loses session context on custom domains.
+                popup = _admin_popup_proof(user, handoff_state, obj.get("admin_handoff_origin") or FRONTEND)
+                popup.set_cookie(COOKIE_NAME, _signer().dumps(user), **_cookie_kwargs(7 * 86400))
+                popup.delete_cookie(STATE_COOKIE, path="/")
+                return popup
+            response.set_cookie(COOKIE_NAME, _signer().dumps(user), **_cookie_kwargs(7 * 86400))
         elif obj["mode"] == "connect":
             signed_user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
             if not signed_user or signed_user["sub"] != sub or signed_user["sub"] != obj.get("sub"):
@@ -496,24 +498,23 @@ async def _deny(send, status, body, origin=None):
 
 # Admin handoff: top-level popup to Render sends a short-lived signed assertion to Vercel.
 # Requires SUBNEXA_ADMIN_BRIDGE_SECRET (same secret on Render and Vercel, 32+ chars).
-@router.get("/admin/handoff")
-def admin_handoff(request: Request, state: str = ""):
+
+# subnexa-admin-proof-v2-popup: callback-to-opener handoff, avoiding a second cookie-dependent navigation.
+def _admin_popup_proof(user, state, target_origin):
     import base64, hmac, json
     from fastapi.responses import HTMLResponse
+    # Permit only known SubNexa origins; never echo an arbitrary third-party origin.
+    known = {FRONTEND, "https://subnexa.lk", "https://www.subnexa.lk", "https://eumf-subnexa.vercel.app",
+             "http://localhost:3000", "http://127.0.0.1:3000"}
+    known.update(s.strip().rstrip("/") for s in os.getenv("SUBNEXA_ADMIN_ALLOWED_ORIGINS", "").split(",") if s.strip())
+    if target_origin not in known:
+        raise HTTPException(status_code=403, detail="Unrecognized SubNexa admin origin")
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", state):
         raise HTTPException(status_code=400, detail="Invalid handoff state")
-    # No backend session yet? Start Google login and resume this popup afterward.
-    user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
-    if user is None:
-        response = RedirectResponse("/", status_code=302)
-        response.headers["location"] = _oauth_url("login", {"admin_handoff_state": state}, response)
-        return response
     allowed = {e.strip().lower() for e in os.getenv("SUBNEXA_ADMIN_EMAILS", "").split(",") if e.strip()}
     email = str(user.get("email", "")).strip().lower()
     if not allowed or email not in allowed or user.get("email_verified") is not True:
         raise HTTPException(status_code=403, detail="Admin access denied")
-    if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", state):
-        raise HTTPException(status_code=400, detail="Invalid handoff state")
     secret = _env("SUBNEXA_ADMIN_BRIDGE_SECRET")
     if len(secret) < 32:
         raise HTTPException(status_code=503, detail="Admin bridge not configured")
@@ -522,13 +523,33 @@ def admin_handoff(request: Request, state: str = ""):
     body = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
     signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
     token = body + "." + base64.urlsafe_b64encode(signature).decode().rstrip("=")
-    # json.dumps prevents injecting token/URL into the script; only trusted FRONTEND origin receives message.
-    target = FRONTEND
-    html = ("<!doctype html><meta charset='utf-8'><title>SubNexa admin verification</title>"
+    html = ("<!doctype html><html><head><meta charset='utf-8'><title>SubNexa admin verification</title></head>"
+            "<body><p>Verifying SubNexa administrator…</p>"
             "<script>if(window.opener){window.opener.postMessage({type:'subnexa-admin-proof',token:"
-            + json.dumps(token) + ",state:" + json.dumps(state) + "}," + json.dumps(target)
-            + ");window.close()}else{document.body.textContent='Open verification from the SubNexa admin page'}</script>")
-    return HTMLResponse(html, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff"})
+            + json.dumps(token) + ",state:" + json.dumps(state) + "}," + json.dumps(target_origin)
+            + ");window.close()}else{document.body.textContent='Open this from the SubNexa admin page'}</script></body></html>")
+    result = HTMLResponse(html, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+                                         "X-Content-Type-Options": "nosniff"})
+    return result
+
+@router.get("/admin/handoff")
+def admin_handoff(request: Request, state: str = "", origin: str = ""):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", state):
+        raise HTTPException(status_code=400, detail="Invalid handoff state")
+    # Validate even when an OAuth login is needed.
+    known = {FRONTEND, "https://subnexa.lk", "https://www.subnexa.lk", "https://eumf-subnexa.vercel.app",
+             "http://localhost:3000", "http://127.0.0.1:3000"}
+    known.update(s.strip().rstrip("/") for s in os.getenv("SUBNEXA_ADMIN_ALLOWED_ORIGINS", "").split(",") if s.strip())
+    target_origin = origin.rstrip("/") or FRONTEND
+    if target_origin not in known:
+        raise HTTPException(status_code=403, detail="Unrecognized SubNexa admin origin")
+    user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
+    if user is None:
+        response = RedirectResponse("/", status_code=302)
+        response.headers["location"] = _oauth_url("login", {"admin_handoff_state": state,
+                                                            "admin_handoff_origin": target_origin}, response)
+        return response
+    return _admin_popup_proof(user, state, target_origin)
 
 
 @router.get("/session")
