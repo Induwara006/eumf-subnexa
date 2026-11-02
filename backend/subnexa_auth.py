@@ -52,19 +52,12 @@ def _oauth_safe_code(exc: Exception, stage: str) -> str:
     return stage if stage in {"google_token_exchange", "google_userinfo", "admin_proof"} else "oauth_unknown_error"
 
 def _popup_oauth_error(target_origin: str, safe_code: str):
-    # Only the site's approved origins may receive error messages.
-    import json as _json
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import RedirectResponse
     allowed = {FRONTEND, "https://subnexa.lk", "https://www.subnexa.lk", "https://eumf-subnexa.vercel.app"}
     allowed.update(s.strip().rstrip("/") for s in os.getenv("SUBNEXA_ADMIN_ALLOWED_ORIGINS", "").split(",") if s.strip())
-    if target_origin not in allowed:
-        target_origin = FRONTEND
-    html = ("<!doctype html><html><head><meta charset='utf-8'><title>SubNexa login error</title></head><body>"
-            "<p>Google verification failed: " + safe_code + "</p><script>"
-            "if(window.opener){window.opener.postMessage({type:'subnexa-admin-oauth-error',code:"
-            + _json.dumps(safe_code) + "}," + _json.dumps(target_origin) + ");window.close()}"
-            "</script></body></html>")
-    return HTMLResponse(html, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    if target_origin not in allowed: target_origin = FRONTEND
+    return RedirectResponse(target_origin + "/admin/verify#" + urlencode({"error": safe_code}),
+                            status_code=302, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
 _current_key = contextvars.ContextVar("subnexa_current_user_gemini_key", default=None)
 _current_sub = contextvars.ContextVar("subnexa_current_user_sub", default=None)
@@ -357,6 +350,8 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
                     or not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", handoff)
                     or not isinstance(origin, str)):
                 raise _OAuthFailure("oauth_state_invalid")
+        if obj.get("mode") == "login" and obj.get("admin_handoff_state"):
+            admin_origin = obj.get("admin_handoff_origin") or FRONTEND
         stage = "google_token_exchange"
         token_reply = requests.post(GOOGLE_TOKEN, data={
             "client_id": _env("GOOGLE_OAUTH_CLIENT_ID"),
@@ -596,35 +591,28 @@ async def _deny(send, status, body, origin=None):
 # subnexa-admin-proof-v2-popup: callback-to-opener handoff, avoiding a second cookie-dependent navigation.
 def _admin_popup_proof(user, state, target_origin):
     import base64, hmac, json
-    from fastapi.responses import HTMLResponse
-    # Permit only known SubNexa origins; never echo an arbitrary third-party origin.
+    from fastapi.responses import RedirectResponse
     known = {FRONTEND, "https://subnexa.lk", "https://www.subnexa.lk", "https://eumf-subnexa.vercel.app",
              "http://localhost:3000", "http://127.0.0.1:3000"}
     known.update(s.strip().rstrip("/") for s in os.getenv("SUBNEXA_ADMIN_ALLOWED_ORIGINS", "").split(",") if s.strip())
-    if target_origin not in known:
-        raise HTTPException(status_code=403, detail="Unrecognized SubNexa admin origin")
-    if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", state):
-        raise HTTPException(status_code=400, detail="Invalid handoff state")
+    if target_origin not in known: raise HTTPException(status_code=403, detail="Unrecognized SubNexa admin origin")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", state): raise HTTPException(status_code=400, detail="Invalid handoff state")
     allowed = {e.strip().lower() for e in os.getenv("SUBNEXA_ADMIN_EMAILS", "").split(",") if e.strip()}
     email = str(user.get("email", "")).strip().lower()
     if not allowed or email not in allowed or user.get("email_verified") is not True:
         raise HTTPException(status_code=403, detail="Admin access denied")
     secret = _env("SUBNEXA_ADMIN_BRIDGE_SECRET")
-    if len(secret) < 32:
-        raise HTTPException(status_code=503, detail="Admin bridge not configured")
+    if len(secret) < 32: raise HTTPException(status_code=503, detail="Admin bridge not configured")
     payload = {"sub": user["sub"], "email": email, "verified": True,
                "iat": int(time.time()), "state": state, "aud": "subnexa-vercel-admin-v1"}
     body = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
     signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
     token = body + "." + base64.urlsafe_b64encode(signature).decode().rstrip("=")
-    html = ("<!doctype html><html><head><meta charset='utf-8'><title>SubNexa admin verification</title></head>"
-            "<body><p>Verifying SubNexa administrator…</p>"
-            "<script>if(window.opener){window.opener.postMessage({type:'subnexa-admin-proof',token:"
-            + json.dumps(token) + ",state:" + json.dumps(state) + "}," + json.dumps(target_origin)
-            + ");window.close()}else{document.body.textContent='Open this from the SubNexa admin page'}</script></body></html>")
-    result = HTMLResponse(html, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
-                                         "X-Content-Type-Options": "nosniff"})
-    return result
+    # Same-origin frontend page forwards the token to admin page over BroadcastChannel.
+    # Fragment is excluded from HTTP requests and access logs.
+    return RedirectResponse(target_origin + "/admin/verify#" + urlencode({"proof": token, "state": state}),
+                            status_code=302, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
 
 @router.get("/admin/handoff")
 def admin_handoff(request: Request, state: str = "", origin: str = ""):

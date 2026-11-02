@@ -27,20 +27,32 @@ export function ensureAdminProof(): Promise<string> {
   const popup = window.open(`${origin}/subnexa-auth/admin/handoff?state=${encodeURIComponent(state)}&origin=${encodeURIComponent(window.location.origin)}`, "subnexa-admin-verify", "width=540,height=660");
   if (!popup) return Promise.reject(new Error("Allow popups to verify your Google admin login."));
   pending = new Promise<string>((resolve,reject) => {
+    const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("subnexa-admin-verify-v6") : null;
+    let timeout: ReturnType<typeof setTimeout>;
+    let finished = false;
     const finish = (err?: Error, token?: string) => {
-      window.removeEventListener("message", message);
+      if (finished) return;
+      finished = true;
+      window.removeEventListener("message", onWindowMessage);
+      channel?.close();
       clearTimeout(timeout);
       pending = null;
       if (err) reject(err); else resolve(token!);
     };
-    const message = (event: MessageEvent) => {
-      if (event.origin !== origin || event.source !== popup) return;
-      const data = event.data;
+    const accept = (data: any) => {
+      if (data?.type === "subnexa-admin-oauth-error") { finish(new Error("Google verification failed: " + String(data.code || "unknown"))); return; }
       if (data?.type !== "subnexa-admin-proof" || data.state !== state || typeof data.token !== "string") return;
-      proof = data.token; expires = Date.now() + 75000; finish(undefined, proof);
+      proof = data.token; expires = Date.now() + 75000;
+      channel?.postMessage({ type: "subnexa-admin-ack", state });
+      finish(undefined, proof);
     };
-    const timeout = window.setTimeout(() => finish(new Error("Admin verification timed out. Sign in with Google on the backend first.")), 30000);
-    window.addEventListener("message",message);
+    const onWindowMessage = (event: MessageEvent) => {
+      if (event.source !== popup || (event.origin !== origin && event.origin !== window.location.origin)) return;
+      accept(event.data);
+    };
+    if (channel) channel.onmessage = event => accept(event.data);
+    window.addEventListener("message", onWindowMessage);
+    timeout = window.setTimeout(() => finish(new Error("Admin verification did not arrive. Check the verification popup.")), 60000);
   });
   return pending;
 }
