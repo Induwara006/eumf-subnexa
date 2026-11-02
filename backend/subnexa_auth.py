@@ -290,6 +290,12 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
         if obj["mode"] == "login":
             user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", ""), "email_verified": True}
             response.set_cookie(COOKIE_NAME, _signer().dumps(user), **_cookie_kwargs(7 * 86400))
+            # Continue the admin popup after Google's verified login.
+            handoff_state = obj.get("admin_handoff_state")
+            if handoff_state is not None:
+                if not isinstance(handoff_state, str) or not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", handoff_state):
+                    raise RuntimeError("Invalid admin handoff state")
+                response.headers["location"] = "/subnexa-auth/admin/handoff?state=" + handoff_state
         elif obj["mode"] == "connect":
             signed_user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
             if not signed_user or signed_user["sub"] != sub or signed_user["sub"] != obj.get("sub"):
@@ -494,7 +500,14 @@ async def _deny(send, status, body, origin=None):
 def admin_handoff(request: Request, state: str = ""):
     import base64, hmac, json
     from fastapi.responses import HTMLResponse
-    user = _user(request)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", state):
+        raise HTTPException(status_code=400, detail="Invalid handoff state")
+    # No backend session yet? Start Google login and resume this popup afterward.
+    user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
+    if user is None:
+        response = RedirectResponse("/", status_code=302)
+        response.headers["location"] = _oauth_url("login", {"admin_handoff_state": state}, response)
+        return response
     allowed = {e.strip().lower() for e in os.getenv("SUBNEXA_ADMIN_EMAILS", "").split(",") if e.strip()}
     email = str(user.get("email", "")).strip().lower()
     if not allowed or email not in allowed or user.get("email_verified") is not True:
