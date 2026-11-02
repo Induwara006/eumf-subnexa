@@ -201,9 +201,16 @@ def _oauth_url(mode, params, response):
     response.set_cookie(STATE_COOKIE, state_blob, **state_cookie_options)
     scopes = BASE_SCOPES + (" " + CLOUD_SCOPE if mode == "connect" else "")
     # Explicit incremental consent; never ask for offline access / refresh tokens.
+    # Admin popup only: sign its entire state so the Google redirect can verify
+    # it even when Chrome does not send the short-lived OAuth cookie back.
+    oauth_state = nonce
+    if mode == "login" and params.get("admin_handoff_state"):
+        oauth_state = URLSafeTimedSerializer(
+            _env("SUBNEXA_SESSION_SECRET"), salt="subnexa-admin-oauth-state-v1"
+        ).dumps(state)
     query = dict(client_id=_env("GOOGLE_OAUTH_CLIENT_ID"),
                  redirect_uri=_env("GOOGLE_OAUTH_REDIRECT_URI"),
-                 response_type="code", scope=scopes, state=nonce,
+                 response_type="code", scope=scopes, state=oauth_state,
                  include_granted_scopes="true", prompt="consent" if mode == "connect" else "select_account")
     return GOOGLE_AUTHORIZE + "?" + urlencode(query)
 
@@ -322,11 +329,34 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
             raise _OAuthFailure("google_consent_denied")
         if not code or not state:
             raise _OAuthFailure("google_callback_missing_parameters")
-        if not stored:
-            raise _OAuthFailure("oauth_state_cookie_missing")
-        obj = _state_signer().loads(stored, max_age=600)
-        if obj.get("nonce") != state:
-            raise _OAuthFailure("oauth_state_mismatch")
+        if stored:
+            obj = _state_signer().loads(stored, max_age=600)
+            if obj.get("mode") == "login" and obj.get("admin_handoff_state"):
+                # Check signed state, avoiding timestamp/serialization comparisons.
+                signed = URLSafeTimedSerializer(
+                    _env("SUBNEXA_SESSION_SECRET"), salt="subnexa-admin-oauth-state-v1"
+                ).loads(state, max_age=600)
+                if signed != obj:
+                    raise _OAuthFailure("oauth_state_mismatch")
+            elif obj.get("nonce") != state:
+                raise _OAuthFailure("oauth_state_mismatch")
+        else:
+            # Only verified ADMIN POPUP login uses a signed cookie-independent
+            # state; regular login and cloud connection retain cookie checks.
+            try:
+                obj = URLSafeTimedSerializer(
+                    _env("SUBNEXA_SESSION_SECRET"), salt="subnexa-admin-oauth-state-v1"
+                ).loads(state, max_age=600)
+            except (BadSignature, SignatureExpired):
+                raise _OAuthFailure("oauth_state_cookie_missing") from None
+            if not isinstance(obj, dict) or obj.get("mode") != "login":
+                raise _OAuthFailure("oauth_state_invalid")
+            handoff = obj.get("admin_handoff_state")
+            origin = obj.get("admin_handoff_origin")
+            if (not isinstance(handoff, str)
+                    or not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", handoff)
+                    or not isinstance(origin, str)):
+                raise _OAuthFailure("oauth_state_invalid")
         stage = "google_token_exchange"
         token_reply = requests.post(GOOGLE_TOKEN, data={
             "client_id": _env("GOOGLE_OAUTH_CLIENT_ID"),
