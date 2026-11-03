@@ -2,6 +2,7 @@
 import CommunitySubtitleUpload from "./CommunitySubtitleUpload";
 import { ensureAdminProof, adminProofHeaders, clearAdminProof, clearAdminSession, markAdminSession } from "@/lib/admin-proof";
 import Link from "next/link";
+import { filmPath } from "@/lib/library-slug";
 import CommunityForm from "./CommunityForm";
 
 import { useEffect, useRef, useState } from "react";
@@ -479,9 +480,11 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
                 <div className="mt-auto flex flex-wrap items-center gap-2">
                   <Button asChild size="sm" className="h-8 w-full gap-1.5 text-xs">
                     {item.kind === "season" ? <Link href={`/library/tv-series/${item.season_slug || item.season_key}`}>View episodes</Link> :
-                    <a href={`${api}${item.download_url}`} download>
-                      <Download className="size-3.5" />Download {seasonKey ? item.format.toUpperCase() : ""}
-                    </a>}
+                    seasonKey ? <a href={`${api}${item.download_url}`} download>
+                      <Download className="size-3.5" />Download {item.format.toUpperCase()}
+                    </a> : <Link href={filmPath(item)}>
+                      <Download className="size-3.5" />Download
+                    </Link>}
                   </Button>
                   {ownerOpen && unlocked && item.kind !== "season" && (
                     <Button type="button" size="sm" variant="outline" className="h-8 min-w-0 flex-1 px-2 text-[11px]"

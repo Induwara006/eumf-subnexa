@@ -467,6 +467,8 @@ async function handle(request: Request, context: Context) {
         .catch(() => console.error("Library delete cleanup needed", item.id));
       return json({ deleted: item.id });
     }
+    /* SUBNEXA_FILM_PAGE_V1: public details of one library item (used by the film page). */
+    if (request.method === "GET" && path.length === 2) return json({ item: publicItem(await getItem(path[1])) });
     if (request.method !== "GET" || !["poster", "download"].includes(path[2])) throw new HttpError(404, "Not found.");
     const item = await getItem(path[1]);
     const isPoster = path[2] === "poster";
