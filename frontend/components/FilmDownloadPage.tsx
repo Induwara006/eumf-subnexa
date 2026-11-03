@@ -26,7 +26,6 @@ export default function FilmDownloadPage({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [posterFailed, setPosterFailed] = useState(false);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
@@ -47,7 +46,7 @@ export default function FilmDownloadPage({ id }: { id: string }) {
   }, [id]);
 
   return (
-    <main className="min-h-screen bg-white text-ink">
+    <main className="min-h-screen bg-background text-ink">
       <div className="mx-auto max-w-3xl space-y-6 px-5 py-10 sm:px-8">
         <nav className="flex items-center justify-between text-sm">
           <Link href="/library" className="inline-flex items-center gap-1.5 text-body transition-colors hover:text-ink"><ArrowLeft className="size-4" />Subtitle library</Link>

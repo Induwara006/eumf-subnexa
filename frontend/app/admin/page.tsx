@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { adminProofHeaders, clearAdminSession, ensureAdminSession } from "@/lib/admin-proof";
+import ThemeToggle from "@/components/theme-toggle";
 
 type Tab = "approvals" | "requests" | "library";
 type Submission = { id: string; title: string; year: string; format: string; status: string; created_at: string; admin_note: string | null };
@@ -25,9 +26,9 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 function statusClass(status: string) {
-  if (status === "approved" || status === "resolved") return "bg-success/15 text-green-700";
+  if (status === "approved" || status === "resolved") return "bg-success/15 text-green-700 dark:text-green-300";
   if (status === "rejected") return "bg-destructive/10 text-destructive";
-  if (status === "in_progress") return "bg-blue-500/10 text-blue-700";
+  if (status === "in_progress") return "bg-blue-500/10 text-blue-700 dark:text-blue-300";
   return "bg-amber-500/20 text-warning";
 }
 
@@ -299,7 +300,10 @@ export default function AdminDashboard() {
             <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-body hover:text-ink"><ArrowLeft className="size-3.5" />Back to SubNexa</Link>
             <h1 className="mt-2 text-2xl font-semibold">Admin dashboard</h1>
           </div>
-          {unlocked && <Button variant="outline" size="sm" className="gap-1.5" onClick={() => lock()}><Lock className="size-3.5" />Lock</Button>}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            {unlocked && <Button variant="outline" size="sm" className="gap-1.5" onClick={() => lock()}><Lock className="size-3.5" />Lock</Button>}
+          </div>
         </div>
 
         {!unlocked ? (

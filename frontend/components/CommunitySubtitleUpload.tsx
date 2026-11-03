@@ -19,7 +19,7 @@ export default function CommunitySubtitleUpload() {
       <label>Year (optional)<input maxLength={4} className="ml-2 w-24 rounded-lg border border-input bg-surface-primary px-3 py-2 outline-none focus:border-ring" value={year} onChange={e=>setYear(e.target.value.replace(/\D/g,""))}/></label>
       <input required aria-label="Choose SRT or ASS" type="file" accept=".srt,.ass" onChange={e=>setFile(e.target.files?.[0]||null)}/>
       <p className="text-xs leading-relaxed text-body">Sign in first. Only upload files you have permission to share. Limit: 3 submissions per 24 hours. Files remain private until approved.</p>
-      <button disabled={busy || !file} className="w-fit rounded-lg bg-ink px-4 py-2 font-medium text-white transition-colors hover:bg-black disabled:opacity-50">{busy?"Submitting…":"Send for review"}</button>
+      <button disabled={busy || !file} className="w-fit rounded-lg bg-[#161618] px-4 py-2 font-medium text-white transition-colors hover:bg-black disabled:opacity-50">{busy?"Submitting…":"Send for review"}</button>
     </form>}
     {message&&<p role="status" className="mt-2">{message}</p>}
   </section>

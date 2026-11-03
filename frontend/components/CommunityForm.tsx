@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { openAuthPopup } from "@/lib/auth-popup";
 const API = (process.env.NEXT_PUBLIC_SUBNEXA_API_URL || (process.env.NODE_ENV === "production" ? "/subnexa-api" : "http://localhost:8000")).replace(/\/$/, "");
 export default function CommunityForm({kind,title=""}:{kind:"request"|"report";title?:string}) {
  const [open,setOpen]=useState(false),[name,setName]=useState(title),[details,setDetails]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[login,setLogin]=useState(false);
@@ -29,6 +30,6 @@ export default function CommunityForm({kind,title=""}:{kind:"request"|"report";t
  <p className="text-xs text-muted-foreground">Visible to the site team only. Do not include API keys or other private information. Up to 10 submissions per day.</p>
  <Button type="submit" disabled={busy||!name.trim()||!details.trim()}>{busy?"Sending…":"Send"}</Button>
  {message&&<p role="status" className="text-sm">{message}</p>}
- {login&&<a className="block underline" href={`${API}/subnexa-auth/login`}>Sign in with Google</a>}
+ {login&&<a className="block underline" href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); openAuthPopup(`${API}/subnexa-auth/login`); }}>Sign in with Google</a>}
  </form></DialogContent></Dialog></>;
 }

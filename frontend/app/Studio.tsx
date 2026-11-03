@@ -13,10 +13,8 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   CircleHelp,
-  Compass,
   Copy,
   Cpu,
   Download,
@@ -24,17 +22,14 @@ import {
   FileSpreadsheet,
   FileText,
   Film,
-  Info,
   Languages,
   LayoutDashboard,
   Loader2,
   Lock,
-  LogIn,
   Pencil,
   Play,
   Pause,
   Square,
-  Plus,
   RotateCcw,
   Search,
   Settings2,
@@ -47,9 +42,10 @@ import { bilingualSrt } from "./bilingual";
 import QuickGuide from "../components/QuickGuide";
 import CommunityForm from "../components/CommunityForm";
 import FairUse from "../components/FairUse";
-import Link from "next/link";
 
 import SubNexaAccountDock from "../components/SubNexaAccountDock";
+import ThemeToggle from "../components/theme-toggle";
+import StudioPulse, { type PulsePoint } from "../components/StudioPulse";
 import SubtitleLibrary from "../components/SubtitleLibrary";
 import LibrarySearchResults from "../components/LibrarySearchResults";
 import LibraryMatchBanner, { type LibraryMatch } from "../components/LibraryMatchBanner";
@@ -59,7 +55,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -212,7 +207,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const fileInput = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"source" | "translated" | "compare">("source");
   const [library, setLibrary] = useState(false);
-  const [navCollapsed, setNavCollapsed] = useState(false);
   const [sourceText, setSourceText] = useState("");
   const [cueSearch, setCueSearch] = useState("");
   const [jumpNumber, setJumpNumber] = useState("");
@@ -225,7 +219,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const [cinemaOpen, setCinemaOpen] = useState(false);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [backgroundDim, setBackgroundDim] = useState(78);
-  const [scrolled, setScrolled] = useState(false);
   const [readyCardVisible, setReadyCardVisible] = useState(true);
   const [help, setHelp] = useState(false);
   const [glossarySearch, setGlossarySearch] = useState("");
@@ -314,6 +307,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const etaSample = useRef<{ started: number; baseline: number; last: number; updates: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [progressHistory, setProgressHistory] = useState<PulsePoint[]>([]);
   const [glossaryGroups, setGlossaryGroups] = useState<Groups>(() => initialGroups(GLOSSARY_PRESETS));
   const glossaryRules = useMemo(() => activeRules(glossaryGroups), [glossaryGroups]);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
@@ -328,7 +322,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const [glossaryReady, setGlossaryReady] = useState(false);
   const signedIn = true;
   const accountName = initialSession.name || "";
-  const accountEmail = initialSession.email || "";
 
   const activityEnd = useRef<HTMLDivElement>(null);
   const activityFollow = useRef(true);
@@ -401,13 +394,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   useEffect(() => {
     try { localStorage.setItem("subnexa-background-dim", String(backgroundDim)); } catch { /* private mode */ }
   }, [backgroundDim]);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => {
     const card = readyCardRef.current;
@@ -580,6 +566,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
     setPreview("");
     setProgress(0);
     setTranslatedCount(0);
+    setProgressHistory([]);
     setTotalCount(0);
     setResuming(false);
     activityFollow.current = true;
@@ -867,6 +854,13 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           }
           setTranslatedCount(data.completed);
           setTotalCount(data.total);
+          setProgressHistory((previous) => {
+            const remaining = Math.max(0, Number(data.total) - Number(data.completed));
+            const point = { label: `${data.completed}/${data.total}`, done: Number(data.completed), remaining };
+            const last = previous[previous.length - 1];
+            if (last && last.done === point.done && last.remaining === point.remaining) return previous;
+            return [...previous, point].slice(-30);
+          });
           setProgress(
             data.total > 0
               ? Math.min(99, Math.floor((data.completed / data.total) * 100))
@@ -1079,6 +1073,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
     setEditingCue(null);
     setProgress(0);
     setTranslatedCount(0);
+    setProgressHistory([]);
     setResuming(false);
     setTab("source");
   }
@@ -1184,46 +1179,22 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
     <div className="inc-fade-in relative isolate flex min-h-screen flex-col bg-background" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
       <SubtitleLibrary open={library} onOpenChange={setLibrary} api={API} />
 
-      {signedIn && (<>
-        <aside inert={navCollapsed} className={cn("fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r border-border bg-sidebar px-4 py-5 transition-transform duration-300 ease-in-out motion-reduce:transition-none lg:flex", navCollapsed && "-translate-x-full")}>
-          <a href="#sn-overview" className="netflix-logo px-2 text-2xl" aria-label="SubNexa studio">SubNexa</a>
-          <nav className="mt-7 flex flex-col gap-0.5" aria-label="Studio">
-            {studioNav.map(item => (
-              <a key={item.href} href={item.href} className="flex items-center gap-3 rounded-[4px] px-2.5 py-2 text-[13px] text-body transition-colors hover:bg-ink/5 hover:text-ink">
-                <item.icon className="size-4" />{item.label}
-              </a>
-            ))}
-            <button type="button" onClick={() => setLibrary(true)} className="flex items-center gap-3 rounded-[4px] px-2.5 py-2 text-left text-[13px] text-body transition-colors hover:bg-ink/5 hover:text-ink">
-              <Compass className="size-4 text-primary" />Discover subtitles
-            </button>
-          </nav>
-          <div className="mt-auto rounded-[4px] border border-border bg-ink/[0.03] p-3">
-            <p className="text-[9px] uppercase tracking-[0.16em] text-content-tertiary">Signed in</p>
-            <p className="mt-1 truncate text-xs text-ink/75">{accountEmail || accountName}</p>
-          </div>
-        </aside>
-
-        <button
-          type="button"
-          onClick={() => setNavCollapsed(value => !value)}
-          aria-label={navCollapsed ? "Open sidebar" : "Close sidebar"}
-          aria-expanded={!navCollapsed}
-          className={cn(
-            "fixed top-[1.15rem] z-[60] hidden size-7 items-center justify-center rounded-full border border-border bg-background text-ink/70 shadow-md transition-[left,background-color,color] duration-300 ease-in-out hover:bg-primary hover:text-ink motion-reduce:transition-none lg:flex",
-            navCollapsed ? "left-2" : "left-[calc(16rem-0.875rem)]",
-          )}
-        >
-          {navCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
-        </button>
-
-        <header className={cn("sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur transition-[margin] duration-300 ease-in-out motion-reduce:transition-none", navCollapsed ? "lg:ml-0" : "lg:ml-64")}>
-          <div className={cn("flex h-16 items-center gap-3 px-4 transition-[padding] duration-300 motion-reduce:transition-none sm:px-6", navCollapsed && "lg:pl-12")}>
-            <a href="#sn-overview" className="netflix-logo text-xl lg:hidden">SubNexa</a>
-            <div className="hidden min-w-0 sm:block">
-              <h1 className="truncate text-sm font-semibold">Welcome back, {firstName}</h1>
-            </div>
+      {signedIn && (
+        <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+            <a href="#sn-overview" className="flex items-center gap-2.5" aria-label="SubNexa studio">
+              <span className="grid size-7 place-items-center rounded-lg bg-ink text-background"><Languages className="size-4" /></span>
+              <span className="flex items-baseline gap-1 text-[20px] font-semibold tracking-[-0.04em]">SubNexa<span className="size-1.5 rounded-full bg-alarmalade" /></span>
+            </a>
+            <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Studio">
+              {studioNav.map(item => (
+                <a key={item.href} href={item.href} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-body transition-colors hover:bg-ink/5 hover:text-ink">
+                  <item.icon className="size-3.5" />{item.label}
+                </a>
+              ))}
+            </nav>
             <div className="ml-auto flex items-center gap-2">
-              <div className="relative hidden items-center gap-2 rounded-[4px] border border-border bg-ink/[0.04] px-3 md:flex">
+              <div className="relative hidden items-center gap-2 rounded-lg border border-border bg-ink/[0.04] px-3 md:flex">
                 <Search className="size-3.5 text-content-tertiary" />
                 <Input
                   value={cueSearch}
@@ -1237,20 +1208,21 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               <Button variant="ghost" size="icon" className="text-body hover:text-ink" aria-label="Guide" onClick={() => setHelp(true)}>
                 <CircleHelp />
               </Button>
+              <ThemeToggle />
               <SubNexaAccountDock />
             </div>
           </div>
-          <nav className="flex gap-1 overflow-x-auto border-t border-border/60 px-4 py-2 text-[11px] lg:hidden" aria-label="Studio">
+          <nav className="inc-hide-scrollbar flex gap-1 overflow-x-auto border-t border-border/60 px-4 py-2 text-[11px] lg:hidden" aria-label="Studio">
             {studioNav.map(item => (
-              <a key={item.href} href={item.href} className="shrink-0 rounded-[3px] px-2.5 py-1.5 text-body transition-colors hover:bg-ink/5 hover:text-ink">{item.label}</a>
+              <a key={item.href} href={item.href} className="shrink-0 rounded-lg px-2.5 py-1.5 text-body transition-colors hover:bg-ink/5 hover:text-ink">{item.label}</a>
             ))}
-            <button type="button" onClick={() => setLibrary(true)} className="shrink-0 rounded-[3px] px-2.5 py-1.5 text-body transition-colors hover:bg-ink/5 hover:text-ink">Discover subtitles</button>
+            <button type="button" onClick={() => setLibrary(true)} className="shrink-0 rounded-lg px-2.5 py-1.5 text-body transition-colors hover:bg-ink/5 hover:text-ink">Discover subtitles</button>
           </nav>
         </header>
-      </>)}
+      )}
 
       {signedIn && (
-      <main id="sn-workspace" className={cn("w-full flex-1 scroll-mt-6 px-4 pb-28 pt-6 transition-[margin,width] duration-300 ease-in-out motion-reduce:transition-none sm:px-6 lg:px-8", navCollapsed ? "lg:ml-0 lg:w-full" : "lg:ml-64 lg:w-[calc(100%-16rem)]")}>
+      <main id="sn-workspace" className="w-full flex-1 scroll-mt-6 px-4 pb-28 pt-6 sm:px-6 lg:px-8">
         <FairUse api={API} />
         <div id="sn-overview" className="mb-8 scroll-mt-24">
           <div className="flex flex-wrap items-end justify-between gap-2">
@@ -1273,6 +1245,82 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 </CardContent>
               </Card>
             ))}
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+            <Card className="border-border bg-card">
+              <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-sm">Translation activity</CardTitle>
+                  <CardDescription className="mt-1 text-xs">Cues completed during the current run.</CardDescription>
+                </div>
+                <Badge variant="outline" className="border-border/80 font-mono text-[10px] text-muted-foreground">{translatedCount}/{totalCount || "—"}</Badge>
+              </CardHeader>
+              <CardContent>
+                <StudioPulse data={progressHistory} total={totalCount} translated={translatedCount} />
+              </CardContent>
+            </Card>
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <CardTitle className="text-sm">Recent activity</CardTitle>
+                <CardDescription className="text-xs">The latest studio events.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {activity.length ? (
+                  <ul className="space-y-3">
+                    {activity.slice(-5).reverse().map(item => (
+                      <li key={item.id} className="flex items-start gap-2.5">
+                        <span className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", item.tone === "success" ? "bg-success" : item.tone === "warn" ? "bg-warning" : "bg-primary")} />
+                        <div className="min-w-0">
+                          <p className="truncate text-[12px] font-medium text-ink">{item.label}</p>
+                          {item.detail && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">{item.detail}</p>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="flex h-[180px] flex-col items-center justify-center gap-2 text-center">
+                    <Sparkles className="size-5 text-content-tertiary" />
+                    <p className="text-xs text-muted-foreground">Translation events will appear here once a run starts.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Card className="border-border bg-card">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm">Active project</CardTitle>
+                <Film className="size-4 text-content-tertiary" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="truncate font-medium text-ink">{file?.name || "No file selected"}</span>
+                  <span className="shrink-0 font-mono text-[10px] text-content-tertiary">{progress}%</span>
+                </div>
+                <Progress value={progress} className="h-1.5" />
+                <p className="text-[11px] text-muted-foreground">{file ? `${totalCount || "—"} cues · ${translating ? "translating now" : done ? "ready to download" : "ready to start"}` : "Upload an SRT to start a project."}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border bg-card">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm">Pipeline</CardTitle>
+                <Cpu className="size-4 text-content-tertiary" />
+              </CardHeader>
+              <CardContent className="grid grid-cols-3 gap-3 text-xs">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-content-tertiary">Model</p>
+                  <p className="mt-1 font-medium text-ink">{modelChoice === "subnexa_11" ? "1.1" : modelChoice === "subnexa_pro" ? "Pro" : "0.2"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-content-tertiary">Voice</p>
+                  <p className="mt-1 font-medium capitalize text-ink">{style}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-content-tertiary">Glossary</p>
+                  <p className="mt-1 font-medium text-ink">{glossaryRules.length} rules</p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
