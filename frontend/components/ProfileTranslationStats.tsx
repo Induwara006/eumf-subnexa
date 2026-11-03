@@ -33,7 +33,7 @@ export default function ProfileTranslationStats() {
     return () => {active=false;controller?.abort();window.removeEventListener("focus",refresh);window.removeEventListener("subnexa-library-updated",refresh);window.removeEventListener("subnexa-session-changed",sessionChanged);};
   }, []);
   if (signedOut) return null;
-  return <section className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4" aria-label="Your translation statistics">
+  return <section className="mt-5 rounded-xl border border-border bg-ink/5 p-4" aria-label="Your translation statistics">
     <h3 className="text-sm font-semibold">Completed subtitle files</h3>
     {stats ? <><p className="mt-2 text-3xl font-bold text-primary">{stats.completed_files.toLocaleString()}</p>
       <p className="mt-2 text-xs text-muted-foreground">Recorded since {new Date(stats.tracking_since).toLocaleDateString("en-GB", {timeZone:"Asia/Colombo"})}. Earlier translations are not included.</p>

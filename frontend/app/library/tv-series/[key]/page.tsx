@@ -25,11 +25,11 @@ export async function generateMetadata({params}: {params: Promise<{key: string}>
 export default async function SeasonPage({params}: {params: Promise<{key: string}>}) {
   const {key} = await params;
   if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(key)) notFound();
-  return <div className="min-h-screen bg-[#141414] text-white">
-    <header className="border-b border-white/10 px-4 py-5 sm:px-8"><div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4">
-      <Link href="/" className="text-2xl font-bold text-primary">SubNexa</Link>
-      <Link href="/library" className="text-sm text-white/70 hover:text-white">← All subtitles</Link>
+  return <div className="min-h-screen bg-white text-ink">
+    <header className="sticky top-0 z-40 border-b border-border bg-white/85 backdrop-blur-xl px-5 py-4 sm:px-8"><div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4">
+      <Link href="/" className="flex items-baseline gap-1.5 text-2xl font-medium tracking-[-0.03em]">SubNexa<span className="size-1.5 rounded-full bg-alarmalade" /></Link>
+      <Link href="/library" className="text-sm text-body transition-colors hover:text-ink">← All subtitles</Link>
     </div></header>
-    <main className="mx-auto max-w-[1480px] px-4 py-8 sm:px-8"><LibraryBrowser key={key} api="" seasonKey={key} /></main>
+    <main className="mx-auto max-w-[1240px] px-5 py-10 sm:px-8"><LibraryBrowser key={key} api="" seasonKey={key} /></main>
   </div>;
 }

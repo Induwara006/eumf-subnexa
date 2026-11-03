@@ -25,10 +25,10 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 function statusClass(status: string) {
-  if (status === "approved" || status === "resolved") return "bg-green-500/20 text-green-300";
-  if (status === "rejected") return "bg-red-500/20 text-red-300";
-  if (status === "in_progress") return "bg-blue-500/20 text-blue-300";
-  return "bg-amber-500/20 text-amber-200";
+  if (status === "approved" || status === "resolved") return "bg-success/15 text-green-700";
+  if (status === "rejected") return "bg-destructive/10 text-destructive";
+  if (status === "in_progress") return "bg-blue-500/10 text-blue-700";
+  return "bg-amber-500/20 text-warning";
 }
 
 async function readError(response: Response, fallback: string) {
@@ -292,19 +292,19 @@ export default function AdminDashboard() {
   const visibleTickets = hasKinds && ticketFilter !== "all" ? tickets.filter(x => x.kind === ticketFilter) : tickets;
 
   return (
-    <main className="min-h-screen bg-[#141414] text-white">
+    <main className="min-h-screen bg-background text-ink">
       <div className="mx-auto max-w-5xl space-y-5 px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white"><ArrowLeft className="size-3.5" />Back to SubNexa</Link>
+            <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-body hover:text-ink"><ArrowLeft className="size-3.5" />Back to SubNexa</Link>
             <h1 className="mt-2 text-2xl font-semibold">Admin dashboard</h1>
           </div>
           {unlocked && <Button variant="outline" size="sm" className="gap-1.5" onClick={() => lock()}><Lock className="size-3.5" />Lock</Button>}
         </div>
 
         {!unlocked ? (
-          <div className="max-w-md space-y-3 rounded-xl border border-white/10 bg-white/5 p-5">
-            <p className="text-sm text-white/70">Admins only. Unlocking opens a Google sign-in popup to verify your admin account, then checks the admin password.</p>
+          <div className="max-w-md space-y-3 rounded-xl border border-border bg-ink/[0.03] p-5">
+            <p className="text-sm text-body">Admins only. Unlocking opens a Google sign-in popup to verify your admin account, then checks the admin password.</p>
             <div className="flex gap-2">
               <Input aria-label="Admin password" type="password" autoComplete="off" placeholder="Admin password" value={key}
                 onChange={e => { setKey(e.target.value); setUnlockError(""); }}
@@ -313,47 +313,47 @@ export default function AdminDashboard() {
                 {unlocking ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}Unlock
               </Button>
             </div>
-            {unlockError && <p role="alert" className="text-xs text-red-400">{unlockError}</p>}
+            {unlockError && <p role="alert" className="text-xs text-destructive">{unlockError}</p>}
           </div>
         ) : (
           <>
             <div className="flex flex-wrap gap-2" role="tablist">
               {TABS.map(t => (
                 <button key={t.id} role="tab" aria-selected={tab === t.id} disabled={busy} onClick={() => switchTab(t.id)}
-                  className={`rounded-md border px-3 py-1.5 text-sm ${tab === t.id ? "border-primary bg-primary/15 text-white" : "border-white/15 text-white/70 hover:text-white"}`}>
+                  className={`rounded-md border px-3 py-1.5 text-sm ${tab === t.id ? "border-primary bg-primary/15 text-ink" : "border-border text-body hover:text-ink"}`}>
                   {t.label}{t.id === "approvals" && pending.length > 0 ? ` (${pending.length})` : ""}
                 </button>
               ))}
-              {busy && <Loader2 className="size-4 animate-spin self-center text-white/60" />}
+              {busy && <Loader2 className="size-4 animate-spin self-center text-body" />}
             </div>
-            {notice && <p role="status" className={`text-sm ${notice.ok ? "text-green-400" : "text-red-400"}`}>{notice.text}</p>}
+            {notice && <p role="status" className={`text-sm ${notice.ok ? "text-success" : "text-destructive"}`}>{notice.text}</p>}
 
             {tab === "approvals" && (
               <section className="space-y-3">
-                <label className="flex items-center gap-2 text-xs text-white/60">
+                <label className="flex items-center gap-2 text-xs text-body">
                   <input type="checkbox" checked={showReviewed} onChange={e => setShowReviewed(e.target.checked)} />Show already reviewed submissions
                 </label>
-                {visibleSubs.length === 0 && !busy && <p className="text-sm text-white/60">No submissions waiting for review.</p>}
+                {visibleSubs.length === 0 && !busy && <p className="text-sm text-body">No submissions waiting for review.</p>}
                 {visibleSubs.map(item => (
-                  <article key={item.id} className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <article key={item.id} className="space-y-3 rounded-xl border border-border bg-ink/[0.03] p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-semibold">{item.title}{item.year ? ` (${item.year})` : ""}</h2>
                       <Badge className="uppercase">{item.format}</Badge>
                       <Badge className={statusClass(item.status)}>{item.status}</Badge>
-                      <span className="text-xs text-white/50">{new Date(item.created_at).toLocaleString()}</span>
+                      <span className="text-xs text-content-tertiary">{new Date(item.created_at).toLocaleString()}</span>
                     </div>
                     {item.status === "pending" ? (
                       <>
                         <textarea aria-label="Admin note" maxLength={500} rows={2} placeholder="Admin note (optional, max 500 characters)"
                           value={notes[item.id] ?? ""} onChange={e => setNotes(map => ({ ...map, [item.id]: e.target.value }))}
-                          className="w-full rounded-md border border-white/15 bg-black/30 p-2 text-sm" />
+                          className="w-full rounded-md border border-border bg-ink/[0.04] p-2 text-sm" />
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" disabled={busy} className="gap-1.5" onClick={() => void previewSubmission(item)}><Eye className="size-3.5" />Preview</Button>
                           <Button size="sm" disabled={busy} className="gap-1.5" onClick={() => void review(item, "approved")}><Check className="size-3.5" />Approve</Button>
                           <Button size="sm" variant="outline" disabled={busy} className="gap-1.5" onClick={() => void review(item, "rejected")}><X className="size-3.5" />Decline</Button>
                         </div>
                       </>
-                    ) : item.admin_note ? <p className="text-xs text-white/60">Note: {item.admin_note}</p> : null}
+                    ) : item.admin_note ? <p className="text-xs text-body">Note: {item.admin_note}</p> : null}
                   </article>
                 ))}
               </section>
@@ -363,26 +363,26 @@ export default function AdminDashboard() {
               <section className="space-y-3">
                 {hasKinds ? (
                   <select aria-label="Show" value={ticketFilter} onChange={e => setTicketFilter(e.target.value as "request" | "report" | "all")}
-                    className="rounded-md border border-white/20 bg-[#202020] p-2 text-sm">
+                    className="rounded-md border border-input bg-surface-primary p-2 text-sm">
                     <option value="request">Subtitle requests</option>
                     <option value="report">Translation issue reports</option>
                     <option value="all">Everything</option>
                   </select>
-                ) : tickets.length > 0 && <p className="text-xs text-amber-200">The table has no request/report type column, so everything is listed together.</p>}
-                {visibleTickets.length === 0 && !busy && <p className="text-sm text-white/60">Nothing here yet.</p>}
+                ) : tickets.length > 0 && <p className="text-xs text-warning">The table has no request/report type column, so everything is listed together.</p>}
+                {visibleTickets.length === 0 && !busy && <p className="text-sm text-body">Nothing here yet.</p>}
                 {visibleTickets.map(item => (
-                  <article key={item.id} className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <article key={item.id} className="space-y-3 rounded-xl border border-border bg-ink/[0.03] p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-semibold">{item.title}</h2>
                       {item.kind && <Badge className="uppercase">{item.kind}</Badge>}
                       <Badge className={statusClass(item.status)}>{item.status}</Badge>
-                      <span className="text-xs text-white/50">{new Date(item.created_at).toLocaleString()}</span>
+                      <span className="text-xs text-content-tertiary">{new Date(item.created_at).toLocaleString()}</span>
                     </div>
-                    <p className="whitespace-pre-wrap break-words text-sm text-white/80">{item.details}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm text-ink/80">{item.details}</p>
                     <textarea aria-label="Internal note" maxLength={1000} rows={2} placeholder="Internal note"
                       value={item.admin_note ?? ""}
                       onChange={e => setTickets(list => list.map(x => (x.id === item.id ? { ...x, admin_note: e.target.value } : x)))}
-                      className="w-full rounded-md border border-white/15 bg-black/30 p-2 text-sm" />
+                      className="w-full rounded-md border border-border bg-ink/[0.04] p-2 text-sm" />
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => void updateTicket(item, "in_progress")}>In progress</Button>
                       <Button size="sm" disabled={busy} className="gap-1.5" onClick={() => void updateTicket(item, "resolved")}><Check className="size-3.5" />Approve / done</Button>
@@ -399,13 +399,13 @@ export default function AdminDashboard() {
                   <Input aria-label="Search library" placeholder="Search by title or year" maxLength={80} value={libQuery} onChange={e => setLibQuery(e.target.value)} />
                   <Button type="submit" disabled={busy} className="shrink-0 gap-1.5"><Search className="size-4" />Search</Button>
                 </form>
-                {libItems.length === 0 && !busy && <p className="text-sm text-white/60">No subtitles found. Try searching by title.</p>}
+                {libItems.length === 0 && !busy && <p className="text-sm text-body">No subtitles found. Try searching by title.</p>}
                 {libItems.map(item => (
-                  <article key={item.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <article key={item.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-ink/[0.03] p-3">
                     {item.poster_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={`/api${item.poster_url}?v=${posterV[String(item.id)] ?? 0}`} alt="" loading="lazy" className="h-16 w-11 shrink-0 rounded object-cover" />
-                    ) : <div className="grid h-16 w-11 shrink-0 place-items-center rounded bg-black/40 text-[9px] text-white/40">No poster</div>}
+                    ) : <div className="grid h-16 w-11 shrink-0 place-items-center rounded bg-sand text-[9px] text-content-tertiary">No poster</div>}
                     <div className="min-w-0 flex-1 basis-48">
                       {renaming?.id === String(item.id) ? (
                         <form className="flex gap-2" onSubmit={e => { e.preventDefault(); void renameItem(item, renaming.value); }}>
@@ -416,7 +416,7 @@ export default function AdminDashboard() {
                           <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setRenaming(null)}>Cancel</Button>
                         </form>
                       ) : <p className="truncate text-sm font-semibold" title={item.title}>{item.title}</p>}
-                      <p className="text-xs text-white/55">{[item.year, item.format.toUpperCase(), `${item.downloads} downloads`].filter(Boolean).join(" · ")}</p>
+                      <p className="text-xs text-body">{[item.year, item.format.toUpperCase(), `${item.downloads} downloads`].filter(Boolean).join(" · ")}</p>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" disabled={busy} className="gap-1.5" onClick={() => setRenaming({ id: String(item.id), value: item.title })}><Pencil className="size-3.5" />Rename</Button>
@@ -432,16 +432,16 @@ export default function AdminDashboard() {
       </div>
 
       {unlocked && posterFor && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" role="presentation">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 p-4" role="presentation">
           <div tabIndex={0} role="dialog" aria-modal="true" aria-label="Change poster"
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-white/20 bg-[#252525] p-5 shadow-2xl focus:outline-none"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-input bg-surface-primary p-5 shadow-2xl focus:outline-none"
             onPaste={e => {
               if (pickerBusy) return;
               const file = Array.from(e.clipboardData.items).find(x => x.type.startsWith("image/"))?.getAsFile();
               if (file) { e.preventDefault(); void applyPoster(posterFor, file); }
             }}>
             <h2 className="mb-1 text-base font-semibold">{posterFor.poster_url ? "Change" : "Add"} poster: {posterFor.title}</h2>
-            <p className="mb-3 text-xs text-white/65">Search TMDB, drop an image here, paste with Ctrl+V, use an image link, or choose a JPG/PNG/WebP file (max 2 MB).</p>
+            <p className="mb-3 text-xs text-body">Search TMDB, drop an image here, paste with Ctrl+V, use an image link, or choose a JPG/PNG/WebP file (max 2 MB).</p>
             <form className="mb-3 flex gap-2" onSubmit={e => { e.preventDefault(); void searchPicker(); }}>
               <Input aria-label="Search TMDB posters" value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Movie or TV series title" />
               <Button type="submit" disabled={pickerBusy} className="shrink-0">{pickerBusy ? "Working…" : "TMDB Search"}</Button>
@@ -450,7 +450,7 @@ export default function AdminDashboard() {
               <div className="mb-3 grid max-h-60 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
                 {pickerResults.map(match => (
                   <button type="button" key={`${match.type}-${match.id}`} disabled={pickerBusy} onClick={() => void importAndApply(posterFor, match.poster_url)}
-                    className="rounded border border-white/20 p-1 text-left hover:border-primary disabled:opacity-50">
+                    className="rounded border border-input p-1 text-left hover:border-primary disabled:opacity-50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={match.poster_url} alt={match.title} referrerPolicy="no-referrer" className="aspect-[2/3] w-full rounded object-cover" />
                     <span className="block truncate text-[10px]">{match.title} {match.year}</span>
@@ -469,7 +469,7 @@ export default function AdminDashboard() {
                 const url = (e.dataTransfer.getData("text/uri-list").split("\n").find(x => x && !x.startsWith("#")) || e.dataTransfer.getData("text/plain")).trim();
                 if (url) void importAndApply(posterFor, url);
               }}
-              className={`rounded-lg border border-dashed p-4 text-center text-xs text-white/60 ${dragging ? "border-primary bg-primary/10" : "border-white/30"}`}>
+              className={`rounded-lg border border-dashed p-4 text-center text-xs text-body ${dragging ? "border-primary bg-primary/10" : "border-input"}`}>
               Drag & drop an image or an image link here
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -480,18 +480,18 @@ export default function AdminDashboard() {
                 onClick={() => { const url = window.prompt("Direct image link (JPG/PNG/WebP):"); if (url?.trim()) void importAndApply(posterFor, url); }}>Use image link</Button>
               <Button type="button" size="sm" variant="ghost" disabled={pickerBusy} className="ml-auto" onClick={() => setPosterFor(null)}>Close</Button>
             </div>
-            {pickerBusy && <p role="status" className="mt-2 text-xs text-white/75">Working on poster…</p>}
-            {pickerError && <p role="alert" className="mt-2 text-xs text-red-400">{pickerError}</p>}
-            <p className="mt-3 text-[10px] text-white/40">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+            {pickerBusy && <p role="status" className="mt-2 text-xs text-ink/75">Working on poster…</p>}
+            {pickerError && <p role="alert" className="mt-2 text-xs text-destructive">{pickerError}</p>}
+            <p className="mt-3 text-[10px] text-content-tertiary">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
           </div>
         </div>
       )}
 
       {preview && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" role="presentation">
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col gap-3 rounded-xl border border-white/20 bg-[#252525] p-5" role="dialog" aria-modal="true" aria-label="Subtitle preview">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 p-4" role="presentation">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col gap-3 rounded-xl border border-input bg-surface-primary p-5" role="dialog" aria-modal="true" aria-label="Subtitle preview">
             <h2 className="text-base font-semibold">Preview: {preview.title}</h2>
-            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md bg-black/40 p-3 text-xs text-white/85">{preview.text.slice(0, 30000)}{preview.text.length > 30000 ? "\n\n… (preview truncated — use Download for the full file)" : ""}</pre>
+            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md bg-sand p-3 text-xs text-ink/85">{preview.text.slice(0, 30000)}{preview.text.length > 30000 ? "\n\n… (preview truncated — use Download for the full file)" : ""}</pre>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={downloadPreview}>Download full file</Button>
               <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>Close</Button>

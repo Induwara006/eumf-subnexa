@@ -24,8 +24,8 @@ export default function CommunityForm({kind,title=""}:{kind:"request"|"report";t
  <Dialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}}><DialogContent className="max-h-[85dvh] overflow-y-auto">
  <DialogHeader><DialogTitle>{label}</DialogTitle><DialogDescription>{kind === "request" ? "Tell us the movie or series, year, season and episode. Requests are reviewed; delivery is not guaranteed." : "Include the subtitle number, original English line, current Sinhala line and your suggested correction. Reports are reviewed before glossary changes."}</DialogDescription></DialogHeader>
  <form onSubmit={submit} className="space-y-4">
- <label className="block text-sm">Movie or series title<input required maxLength={160} disabled={busy} value={name} onChange={e=>{setName(e.target.value);event.current=null;}} className="mt-2 w-full rounded border border-white/20 bg-black/30 p-3" /></label>
- <label className="block text-sm">Details<textarea required maxLength={2000} rows={5} disabled={busy} value={details} onChange={e=>{setDetails(e.target.value);event.current=null;}} className="mt-2 w-full rounded border border-white/20 bg-black/30 p-3" /></label>
+ <label className="block text-sm">Movie or series title<input required maxLength={160} disabled={busy} value={name} onChange={e=>{setName(e.target.value);event.current=null;}} className="mt-2 w-full rounded-lg border border-input bg-surface-primary p-3 outline-none focus:border-ring" /></label>
+ <label className="block text-sm">Details<textarea required maxLength={2000} rows={5} disabled={busy} value={details} onChange={e=>{setDetails(e.target.value);event.current=null;}} className="mt-2 w-full rounded-lg border border-input bg-surface-primary p-3 outline-none focus:border-ring" /></label>
  <p className="text-xs text-muted-foreground">Visible to the site team only. Do not include API keys or other private information. Up to 10 submissions per day.</p>
  <Button type="submit" disabled={busy||!name.trim()||!details.trim()}>{busy?"Sending…":"Send"}</Button>
  {message&&<p role="status" className="text-sm">{message}</p>}

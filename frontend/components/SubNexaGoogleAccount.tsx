@@ -68,7 +68,7 @@ export default function SubNexaGoogleAccount() {
     <div className="space-y-5">
       {!session?.signed_in ? (
         <div className="space-y-4">
-          <div className="rounded-[4px] border border-white/10 bg-white/5 p-4">
+          <div className="rounded-[4px] border border-border bg-ink/5 p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
               <ShieldCheck className="size-4 text-primary" />Private translation workspace
             </div>
@@ -84,7 +84,7 @@ export default function SubNexaGoogleAccount() {
         </div>
       ) : (
         <>
-          <div className="flex items-start gap-3 rounded-[4px] border border-white/10 bg-white/5 p-4">
+          <div className="flex items-start gap-3 rounded-[4px] border border-border bg-ink/5 p-4">
             <span className="grid size-10 shrink-0 place-items-center rounded-full border border-primary/30 bg-primary/10 text-primary">
               <UserRound className="size-4" />
             </span>
@@ -94,7 +94,7 @@ export default function SubNexaGoogleAccount() {
             </div>
           </div>
 
-          <div className="flex items-start gap-2.5 rounded-[4px] border border-white/10 bg-white/[0.03] p-3 text-[11px] leading-relaxed text-muted-foreground">
+          <div className="flex items-start gap-2.5 rounded-[4px] border border-border bg-ink/[0.03] p-3 text-[11px] leading-relaxed text-muted-foreground">
             <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <p>Your account only links translation jobs to this workspace.</p>
           </div>

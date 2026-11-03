@@ -22,5 +22,5 @@ export default function BackendWarmup() {
    return () => { active = false; clearTimeout(timer); controller?.abort(); };
  }, []);
  if (state !== "starting") return null;
- return <div role="status" className="fixed bottom-4 left-4 z-[100] max-w-sm rounded-xl border border-amber-400/30 bg-[#202020] px-4 py-3 text-sm text-white shadow-xl">Server is starting… Translation and account actions may take a moment. We’ll retry automatically. <button className="ml-2 underline" onClick={() => window.location.reload()}>Retry</button></div>;
+ return <div role="status" className="fixed bottom-4 left-4 z-[100] max-w-sm rounded-xl border border-warning/40 bg-cream px-4 py-3 text-sm text-ink shadow-xl">Server is starting… Translation and account actions may take a moment. We’ll retry automatically. <button className="ml-2 underline" onClick={() => window.location.reload()}>Retry</button></div>;
 }
