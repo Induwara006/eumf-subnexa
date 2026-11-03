@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 import requests
 
-DEFAULT_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+DEFAULT_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 ACCOUNT_ID_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
 
 
