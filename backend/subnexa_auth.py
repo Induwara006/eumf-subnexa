@@ -17,6 +17,7 @@ import re
 import secrets
 import sqlite3
 import time
+import threading
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlencode
@@ -415,7 +416,7 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
         stage = "admin_proof" if obj.get("admin_handoff_state") else "session_issue"
         if obj["mode"] == "login":
             user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", ""), "email_verified": True}
-            _send_login_confirmation(user)
+            threading.Thread(target=_send_login_confirmation, args=(user,), daemon=True).start()
             handoff_state = obj.get("admin_handoff_state")
             if handoff_state is not None:
                 # After Google verifies identity, send a one-time proof straight to the opener.
