@@ -41,9 +41,9 @@ function Poster({ item, api }: { item: LibraryItem; api: string }) {
   const [failed, setFailed] = useState(false);
   if (!item.poster_url || failed) {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-white/5 to-black/60 p-3 text-center">
-        <Film className="size-8 text-white/40" />
-        <span className="text-xs font-semibold text-white/70">{item.title}</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-sand to-sand-strong p-3 text-center">
+        <Film className="size-8 text-ink/40" />
+        <span className="text-xs font-semibold text-ink/70">{item.title}</span>
       </div>
     );
   }
@@ -339,7 +339,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     } catch (e) { setPickerError(e instanceof Error ? e.message : "TMDB search failed."); }
     finally { setPickerBusy(false); }
   }
-  async function usePickerUrl(url: string) {
+  async function applyPickerUrl(url: string) {
     if (pickerBusy || savingPoster || seasonPosterBusy || !unlocked) return;
     setPickerBusy(true); setPickerError("");
     try {
@@ -413,22 +413,22 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     <div className="space-y-4">
       <CommunityForm kind="request" />
       {!seasonKey && <CommunitySubtitleUpload />}
-      {seasonKey && seasonInfo && <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+      {seasonKey && seasonInfo && <div className="rounded-xl border border-border bg-ink/[0.03] p-5">
         <p className="text-xs uppercase tracking-widest text-primary">TV Series {seasonInfo.year && `· ${seasonInfo.year}`}</p>
         <h1 className="mt-2 text-2xl font-bold">{seasonInfo.series_title} · Season {seasonInfo.season_number}</h1>
-        <p className="mt-2 text-sm text-white/60">{seasonInfo.episode_count} episodes · {total} subtitle files. Choose an episode below.</p>
+        <p className="mt-2 text-sm text-ink/60">{seasonInfo.episode_count} episodes · {total} subtitle files. Choose an episode below.</p>
       </div>}
-      {seasonKey && <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm">
+      {seasonKey && <div className="rounded-lg border border-border bg-ink/[0.03] p-3 text-sm">
         {ownerOpen && unlocked ? <div className="flex flex-wrap items-center gap-3">
-          <span className="text-white/80">Season poster: apply one image to every episode, or edit individual posters below.</span>
+          <span className="text-ink/80">Season poster: apply one image to every episode, or edit individual posters below.</span>
           <Button type="button" size="sm" disabled={seasonPosterBusy} onClick={() => openPosterPicker(null)}>
             {seasonPosterBusy ? "Updating…" : "Set season poster"}
           </Button>
-        </div> : <span className="text-white/60">To change season or episode posters, open <strong>Restricted area</strong> below the episode list and unlock with your verified admin login.</span>}
-        {seasonPosterStatus && <p role="status" className="mt-2 text-xs text-white/75">{seasonPosterStatus}</p>}
+        </div> : <span className="text-ink/60">To change season or episode posters, open <strong>Restricted area</strong> below the episode list and unlock with your verified admin login.</span>}
+        {seasonPosterStatus && <p role="status" className="mt-2 text-xs text-ink/75">{seasonPosterStatus}</p>}
       </div>}
       {!seasonKey && <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/50" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/50" />
         <Input
           value={query}
           onChange={event => { setQuery(event.target.value); setOffset(0); }}
@@ -444,38 +444,38 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         <Input aria-label="Filter by year" placeholder="Year" className="w-24" maxLength={4} value={filterYear} onChange={e=>{ setFilterYear(e.target.value.replace(/\D/g,"")); setOffset(0); }}/>
         <Input aria-label="Filter by genre" placeholder="Genre" className="w-32" value={filterGenre} onChange={e=>{ setFilterGenre(e.target.value); setOffset(0); }} maxLength={60}/>
         <Input aria-label="Filter by language" placeholder="Language" className="w-32" value={filterLanguage} onChange={e=>{ setFilterLanguage(e.target.value); setOffset(0); }} maxLength={30}/>
-        <select aria-label="Sort entire library" className="rounded-md border border-white/20 bg-[#202020] p-2 text-sm" value={sortBy} onChange={e=>{ setSortBy(e.target.value); setOffset(0); }}><option value="newest">Newest (default)</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option><option value="year">Year descending</option></select>
+        <select aria-label="Sort entire library" className="rounded-md border border-input bg-surface-primary p-2 text-sm" value={sortBy} onChange={e=>{ setSortBy(e.target.value); setOffset(0); }}><option value="newest">Newest (default)</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option><option value="year">Year descending</option></select>
         {(filterYear||filterGenre||filterLanguage) && <button className="text-xs underline" onClick={()=>{setFilterYear("");setFilterGenre("");setFilterLanguage("");}}>Clear filters</button>}
-        <span className="w-full text-xs text-white/50">Filters and sorting apply to the full library catalogue.</span>
+        <span className="w-full text-xs text-ink/50">Filters and sorting apply to the full library catalogue.</span>
       </div>}
       {error ? (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
       ) : loading && items.length === 0 ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-white/60">
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-ink/60">
           <Loader2 className="size-4 animate-spin" />Loading…
         </div>
       ) : shownItems.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-16 text-center text-sm text-white/60">
-          <Film className="size-8 text-white/30" />
+        <div className="flex flex-col items-center gap-2 py-16 text-center text-sm text-ink/60">
+          <Film className="size-8 text-ink/30" />
           {query.trim() ? `No subtitles found for "${query.trim()}".` : "No subtitles have been added yet."}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {shownItems.map(item => (
-            <div key={item.id} className="group flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
-              <div className="relative aspect-[2/3] overflow-hidden bg-black/40">
+            <div key={item.id} className="group flex flex-col overflow-hidden rounded-xl border border-border bg-ink/[0.03]">
+              <div className="relative aspect-[2/3] overflow-hidden bg-sand">
                 <Poster item={item} api={api} />
-                <Badge className="absolute left-2 top-2 h-5 bg-black/70 px-2 text-[10px] font-semibold uppercase text-white">{item.kind === "season" ? `Season ${item.season_number}` : seasonKey ? `Episode ${item.episode_number}` : item.format}</Badge>
+                <Badge className="absolute left-2 top-2 h-5 bg-ink/80 px-2 text-[10px] font-semibold uppercase text-white">{item.kind === "season" ? `Season ${item.season_number}` : seasonKey ? `Episode ${item.episode_number}` : item.format}</Badge>
               </div>
               <div className="flex flex-1 flex-col gap-2 p-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white" title={item.title}>{item.kind === "season" ? item.series_title : item.title}</p>
-                  <p className="text-[11px] text-white/55">
+                  <p className="truncate text-sm font-semibold text-ink" title={item.title}>{item.kind === "season" ? item.series_title : item.title}</p>
+                  <p className="text-[11px] text-ink/55">
                     {[item.year, item.language].filter(Boolean).join(" · ")}
                     {item.downloads > 0 ? ` · ${item.downloads} downloads` : ""}
                   </p>
-                  {item.kind === "season" && <p className="text-[11px] text-white/70">{item.episode_count} episodes · {item.file_count} files</p>}
-                  {item.kind !== "season" && item.translated_by && <p className="truncate text-[11px] text-white/70" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
+                  {item.kind === "season" && <p className="text-[11px] text-ink/70">{item.episode_count} episodes · {item.file_count} files</p>}
+                  {item.kind !== "season" && item.translated_by && <p className="truncate text-[11px] text-ink/70" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
                 </div>
                 <div className="mt-auto flex flex-wrap items-center gap-2">
                   <Button asChild size="sm" className="h-8 w-full gap-1.5 text-xs">
@@ -504,54 +504,54 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         </div>
       )}
 
-      {(editingPoster || seasonPosterEditing) && ownerOpen && unlocked && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" role="presentation">
-        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-white/20 bg-[#252525] p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Edit library poster">
-          <h2 className="mb-2 text-base font-semibold text-white">{seasonPosterEditing ? `Set season poster: ${seasonInfo?.series_title || seasonKey}` : `${editingPoster?.poster_url ? "Change" : "Add"} poster: ${editingPoster?.title}`}</h2>
-          <p className="mb-3 text-xs text-white/65">Search TMDB, import an image URL, or upload a JPG/PNG/WebP (max 2 MB).</p>
-          {seasonPosterEditing && <p className="mb-3 text-xs text-amber-200">This replaces posters on every subtitle entry in this season, after confirmation.</p>}
+      {(editingPoster || seasonPosterEditing) && ownerOpen && unlocked && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 p-4" role="presentation">
+        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-input bg-surface-primary p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Edit library poster">
+          <h2 className="mb-2 text-base font-semibold text-ink">{seasonPosterEditing ? `Set season poster: ${seasonInfo?.series_title || seasonKey}` : `${editingPoster?.poster_url ? "Change" : "Add"} poster: ${editingPoster?.title}`}</h2>
+          <p className="mb-3 text-xs text-ink/65">Search TMDB, import an image URL, or upload a JPG/PNG/WebP (max 2 MB).</p>
+          {seasonPosterEditing && <p className="mb-3 text-xs text-warning">This replaces posters on every subtitle entry in this season, after confirmation.</p>}
           <div className="mb-3 flex gap-2">
             <Input aria-label="Search TMDB posters" value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Movie or TV series title" onKeyDown={e => {if(e.key === "Enter") {e.preventDefault();void searchPicker();}}}/>
             <Button type="button" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => void searchPicker()}>{pickerBusy ? "Searching…" : "TMDB Search"}</Button>
           </div>
           {!!pickerResults.length && <div className="mb-4 grid max-h-60 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
-            {pickerResults.map(match => <button type="button" key={`${match.type}-${match.id}`} className="rounded border border-white/20 p-1 text-left hover:border-red-500 disabled:opacity-50" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => void usePickerUrl(match.poster_url)}>
+            {pickerResults.map(match => <button type="button" key={`${match.type}-${match.id}`} className="rounded border border-input p-1 text-left hover:border-alarmalade disabled:opacity-50" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => void applyPickerUrl(match.poster_url)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={match.poster_url} alt={match.title} className="aspect-[2/3] w-full rounded object-cover"/>
-              <span className="block truncate text-[10px] text-white">{match.title} {match.year}</span>
+              <span className="block truncate text-[10px] text-ink">{match.title} {match.year}</span>
             </button>)}
           </div>}
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Input ref={editorInput} type="file" accept="image/jpeg,image/png,image/webp" className="max-w-xs" disabled={pickerBusy || savingPoster || seasonPosterBusy}
               onChange={e => {const file=e.target.files?.[0];if(file){if(seasonPosterEditing){void updateSeasonPosters(file).then(()=>setSeasonPosterEditing(false));} else if(editingPoster){void saveExistingPoster(editingPoster,file);}}e.target.value="";}}/>
-            <Button variant="outline" type="button" size="sm" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => {const url=window.prompt("Direct image URL (JPG/PNG/WebP):");if(url?.trim()) void usePickerUrl(url.trim());}}>Use image URL</Button>
+            <Button variant="outline" type="button" size="sm" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => {const url=window.prompt("Direct image URL (JPG/PNG/WebP):");if(url?.trim()) void applyPickerUrl(url.trim());}}>Use image URL</Button>
             <Button variant="ghost" type="button" size="sm" disabled={pickerBusy || savingPoster || seasonPosterBusy} onClick={() => {setEditingPoster(null);setSeasonPosterEditing(false);}}>Close</Button>
           </div>
-          {(pickerBusy || savingPoster || seasonPosterBusy) && <p className="text-xs text-white/75" role="status">Working on poster…</p>}
-          {(pickerError || posterEditError) && <p className="mt-2 text-xs text-red-400" role="alert">{pickerError || posterEditError}</p>}
+          {(pickerBusy || savingPoster || seasonPosterBusy) && <p className="text-xs text-ink/75" role="status">Working on poster…</p>}
+          {(pickerError || posterEditError) && <p className="mt-2 text-xs text-destructive" role="alert">{pickerError || posterEditError}</p>}
         </div>
       </div>}
 
       {total > 60 && <nav aria-label="Library pages" className="flex items-center justify-between gap-3">
         <Button variant="outline" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0,offset-60))}>Previous</Button>
-        <span className="text-xs text-white/60">Page {Math.floor(offset/60)+1} of {Math.ceil(total/60)}</span>
+        <span className="text-xs text-ink/60">Page {Math.floor(offset/60)+1} of {Math.ceil(total/60)}</span>
         <Button variant="outline" disabled={loading || offset+60 >= total} onClick={() => setOffset(offset+60)}>Next</Button>
       </nav>}
-      <details className="text-[10px] text-white/45">
+      <details className="text-[10px] text-ink/45">
         <summary className="cursor-pointer">Poster credits</summary>
         <p className="mt-1">This product uses the <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline">TMDB</a> API but is not endorsed or certified by TMDB.</p>
       </details>
-      <div className="border-t border-white/10 pt-3">
+      <div className="border-t border-border pt-3">
         <button
           type="button"
           onClick={() => setOwnerOpen(value => !value)}
           aria-expanded={ownerOpen}
-          className="flex items-center gap-1.5 text-xs text-white/45 transition-colors hover:text-white/80"
+          className="flex items-center gap-1.5 text-xs text-ink/45 transition-colors hover:text-ink/80"
         >
           <Lock className="size-3" />Restricted area
         </button>
 
         {ownerOpen && !unlocked ? (
-          <div className="mt-3 max-w-sm space-y-2 rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="mt-3 max-w-sm space-y-2 rounded-lg border border-border bg-ink/[0.03] p-3">
             <Label htmlFor="lib-owner-key" className="text-xs">Enter the password to continue</Label>
             <div className="flex gap-2">
               <Input
@@ -568,12 +568,12 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
                 {unlocking ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}Unlock
               </Button>
             </div>
-            {unlockError ? <p className="text-xs text-red-400">{unlockError}</p> : null}
+            {unlockError ? <p className="text-xs text-destructive">{unlockError}</p> : null}
           </div>
         ) : null}
 
         {ownerOpen && unlocked ? (
-          <div className="mt-3 grid gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 rounded-lg border border-border bg-ink/[0.03] p-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="lib-title" className="text-xs">Title</Label>
               <Input id="lib-title" value={title} disabled={uploading || posterBusy} onChange={e => { setTitle(e.target.value); setSelectedTitle(""); }} maxLength={120} placeholder="Movie or series name" />
@@ -592,22 +592,22 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
               <Label htmlFor="lib-episode" className="text-xs">TV episode (optional)</Label>
               <Input id="lib-episode" value={episodeNumber} onChange={e => setEpisodeNumber(e.target.value)} inputMode="numeric" maxLength={3} placeholder="4" />
             </div>
-            <p className="text-xs text-white/55 sm:col-span-2">For TV, enter both numbers or use a filename containing S01E04. Leave both empty for films.</p>
+            <p className="text-xs text-ink/55 sm:col-span-2">For TV, enter both numbers or use a filename containing S01E04. Leave both empty for films.</p>
             <div className="space-y-1.5">
               <Label htmlFor="lib-sub" className="text-xs">Subtitle file (.srt or .ass)</Label>
               <Input ref={subInput} disabled={uploading} id="lib-sub" type="file" accept=".srt,.ass" onChange={e => setSubFile(e.target.files?.[0] ?? null)} />
             </div>
             <div className="space-y-3 sm:col-span-2">
-              {searchBusy && <p role="status" className="text-xs text-white/60">Searching movie and TV posters…</p>}
-              {searchMessage && <p role="status" className="text-xs text-white/60">{searchMessage}</p>}
+              {searchBusy && <p role="status" className="text-xs text-ink/60">Searching movie and TV posters…</p>}
+              {searchMessage && <p role="status" className="text-xs text-ink/60">{searchMessage}</p>}
               {posterMatches.length > 0 && <div>
-                <p className="mb-2 text-xs text-white/65">Choose the correct movie or series to fill its poster and year.</p>
+                <p className="mb-2 text-xs text-ink/65">Choose the correct movie or series to fill its poster and year.</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {posterMatches.map(match => <button type="button" key={`${match.type}-${match.id}`} disabled={posterBusy || uploading}
-                    onClick={() => void importPoster(match.poster_url, match)} className="flex gap-2 rounded-md border border-white/15 p-2 text-left hover:border-primary disabled:opacity-50">
+                    onClick={() => void importPoster(match.poster_url, match)} className="flex gap-2 rounded-md border border-border p-2 text-left hover:border-primary disabled:opacity-50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={match.poster_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-16 w-11 rounded object-cover" />
-                    <span className="min-w-0 text-xs"><span className="block font-semibold">{match.title}</span><span className="text-white/50">{match.year} · {match.type === "tv" ? "TV" : "Movie"}</span></span>
+                    <span className="min-w-0 text-xs"><span className="block font-semibold">{match.title}</span><span className="text-ink/50">{match.year} · {match.type === "tv" ? "TV" : "Movie"}</span></span>
                   </button>)}
                 </div>
               </div>}
@@ -617,20 +617,20 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
                   if (file) choosePoster(file); else { const url = e.dataTransfer.getData("text/uri-list").split("\n").find(x => x && !x.startsWith("#")) || e.dataTransfer.getData("text/plain"); if (url) void importPoster(url); } }}
                 onPaste={e => { if (uploading) return; const file = Array.from(e.clipboardData.items).find(x => x.type.startsWith("image/"))?.getAsFile();
                   if (file) { e.preventDefault(); choosePoster(file); } }}
-                className="rounded-lg border border-dashed border-white/30 p-4 focus:border-primary focus:outline-none">
+                className="rounded-lg border border-dashed border-input p-4 focus:border-primary focus:outline-none">
                 <Label htmlFor="lib-poster" className="text-xs">Poster (JPG, PNG or WebP, max 2 MB)</Label>
-                <p className="my-2 text-xs text-white/55">Drop an image here, click this area and press Ctrl+V, or choose a file.</p>
+                <p className="my-2 text-xs text-ink/55">Drop an image here, click this area and press Ctrl+V, or choose a file.</p>
                 <Input ref={posterInput} disabled={uploading} id="lib-poster" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => choosePoster(e.target.files?.[0] ?? null)} />
                 <div className="mt-3 flex gap-2">
                   <Input aria-label="Direct image link" disabled={uploading || posterBusy} value={posterLink} onChange={e => setPosterLink(e.target.value)} placeholder="https://… direct image link" />
                   <Button type="button" variant="outline" disabled={!posterLink.trim() || posterBusy || uploading} onClick={() => void importPoster(posterLink.trim())}>Use link</Button>
                 </div>
-                {posterBusy && <p role="status" className="mt-2 text-xs text-white/60">Loading poster…</p>}
-                {posterError && <p role="alert" className="mt-2 text-xs text-red-400">{posterError}</p>}
+                {posterBusy && <p role="status" className="mt-2 text-xs text-ink/60">Loading poster…</p>}
+                {posterError && <p role="alert" className="mt-2 text-xs text-destructive">{posterError}</p>}
                 {posterPreview && <div className="mt-3 flex items-center gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={posterPreview} alt="Selected poster preview" className="h-36 w-24 rounded object-cover" />
-                  <div><p className="mb-2 text-xs text-white/60">Poster ready to upload</p><Button type="button" variant="outline" size="sm" disabled={uploading} onClick={clearPoster}>Remove poster</Button></div>
+                  <div><p className="mb-2 text-xs text-ink/60">Poster ready to upload</p><Button type="button" variant="outline" size="sm" disabled={uploading} onClick={clearPoster}>Remove poster</Button></div>
                 </div>}
               </div>
             </div>
@@ -638,8 +638,8 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
               <Button onClick={uploadItem} disabled={uploading || posterBusy} className="gap-2">
                 {uploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}Add to library
               </Button>
-              {notice ? <span className={notice.ok ? "text-xs text-green-400" : "text-xs text-red-400"}>{notice.text}</span> : null}
-              <Button variant="ghost" size="sm" onClick={lockArea} disabled={uploading} className="ml-auto gap-1.5 text-xs text-white/60 hover:text-white">
+              {notice ? <span className={notice.ok ? "text-xs text-success" : "text-xs text-destructive"}>{notice.text}</span> : null}
+              <Button variant="ghost" size="sm" onClick={lockArea} disabled={uploading} className="ml-auto gap-1.5 text-xs text-ink/60 hover:text-ink">
                 <Lock className="size-3.5" />Lock
               </Button>
             </div>

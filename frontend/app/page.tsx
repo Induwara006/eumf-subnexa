@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import Landing from "../components/Landing";
-const Studio = dynamic(() => import("./Studio"), { loading: () => <div className="min-h-screen bg-[#141414] p-8 text-white" role="status">Opening your studio…</div>, ssr: false });
+const Studio = dynamic(() => import("./Studio"), { loading: () => <div className="grid min-h-screen place-items-center bg-cream p-8 text-body" role="status">Opening your studio…</div>, ssr: false });
 const API = (process.env.NEXT_PUBLIC_SUBNEXA_API_URL || (process.env.NODE_ENV === "production" ? "/subnexa-api" : "http://localhost:8000")).replace(/\/$/, "");
 type Session = { signed_in?: boolean; name?: string; email?: string };
 export default function Home() {

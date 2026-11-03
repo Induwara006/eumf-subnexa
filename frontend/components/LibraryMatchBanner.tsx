@@ -57,19 +57,19 @@ export default function LibraryMatchBanner({ match, api, onContinue }: Props) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={poster} alt="" onError={() => setPosterFailed(true)} className="h-14 w-10 shrink-0 rounded object-cover" />
         ) : (
-          <div className="flex h-14 w-10 shrink-0 items-center justify-center rounded bg-white/10">
-            <Film className="size-4 text-white/40" />
+          <div className="flex h-14 w-10 shrink-0 items-center justify-center rounded bg-ink/5">
+            <Film className="size-4 text-ink/40" />
           </div>
         )}
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-xs font-semibold text-white">
+          <p className="text-xs font-semibold text-ink">
             {exact ? "This subtitle is already in the library" : "A similar subtitle is in the library"}
           </p>
-          <p className="truncate text-[11px] text-white/80" title={label}>
+          <p className="truncate text-[11px] text-ink/80" title={label}>
             {label}
             {match.translated_by ? ` · translated by ${match.translated_by}` : ""}
           </p>
-          <p className="text-[11px] leading-relaxed text-white/60">
+          <p className="text-[11px] leading-relaxed text-ink/60">
             {exact
               ? "Its timings match your file exactly, so you can download it and skip the translation."
               : `Its timing differs from your file (${timingDifference(match)}), so it may not sync with your video. Translate to get timings that match your file.`}

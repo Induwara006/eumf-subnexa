@@ -27,8 +27,8 @@ function Thumb({ item, api }: { item: Item; api: string }) {
   const [failed, setFailed] = useState(false);
   if (!item.poster_url || failed) {
     return (
-      <div className="flex h-[54px] w-9 shrink-0 items-center justify-center rounded bg-white/10">
-        <Film className="size-4 text-white/40" />
+      <div className="flex h-[54px] w-9 shrink-0 items-center justify-center rounded bg-ink/5">
+        <Film className="size-4 text-ink/40" />
       </div>
     );
   }
@@ -115,26 +115,26 @@ export default function LibrarySearchResults({ query, api: translationApi, onBro
         <div
           role="listbox"
           aria-label="Subtitle library results"
-          className="absolute right-0 top-full z-50 mt-2 max-h-[60vh] w-[22rem] overflow-y-auto rounded-lg border border-white/10 bg-[#181818] p-1.5 shadow-2xl"
+          className="absolute right-0 top-full z-50 mt-2 max-h-[60vh] w-[22rem] overflow-y-auto rounded-lg border border-border bg-popover p-1.5 shadow-2xl"
         >
-          <p className="flex items-center gap-2 px-2 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+          <p className="flex items-center gap-2 px-2 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink/40">
             Subtitle library
             {loading ? <Loader2 className="size-3 animate-spin" /> : null}
           </p>
           {failed ? (
-            <p className="px-2 py-3 text-xs text-red-400">Could not search the library right now.</p>
+            <p className="px-2 py-3 text-xs text-destructive">Could not search the library right now.</p>
           ) : items.length === 0 && !loading ? (
-            <p className="px-2 py-3 text-xs text-white/55">No subtitles found for &quot;{q}&quot;.</p>
+            <p className="px-2 py-3 text-xs text-ink/55">No subtitles found for &quot;{q}&quot;.</p>
           ) : (
             items.map(item => (
-              <div key={item.id} className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/5">
+              <div key={item.id} className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-ink/5">
                 <Thumb item={item} api={api} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-white" title={item.title}>{item.title}</p>
-                  <p className="text-[11px] text-white/50">
+                  <p className="truncate text-[13px] font-semibold text-ink" title={item.title}>{item.title}</p>
+                  <p className="text-[11px] text-ink/50">
                     {[item.year, item.language, item.format.toUpperCase()].filter(Boolean).join(" · ")}
                   </p>
-                  {item.translated_by && <p className="truncate text-[10px] text-white/60" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
+                  {item.translated_by && <p className="truncate text-[10px] text-ink/60" title={`Translated by ${item.translated_by}`}>Translated by {item.translated_by}</p>}
                 </div>
                 <a
                   href={`${api}${item.download_url}`}
@@ -153,7 +153,7 @@ export default function LibrarySearchResults({ query, api: translationApi, onBro
               setDismissedFor(q);
               onBrowse();
             }}
-            className="mt-1 w-full rounded-md border-t border-white/10 px-2 py-2 text-left text-xs text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+            className="mt-1 w-full rounded-md border-t border-border px-2 py-2 text-left text-xs text-ink/60 transition-colors hover:bg-ink/5 hover:text-ink"
           >
             Browse the full library
           </button>

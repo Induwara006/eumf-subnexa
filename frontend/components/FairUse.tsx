@@ -12,7 +12,7 @@ export default function FairUse({api}:{api:string}) {
   }
   void refresh();return()=>{stopped=true;clearTimeout(timer);controller.abort();};
  },[api]);
- return <aside className="mb-5 rounded border border-white/10 bg-black/20 p-4 text-sm" aria-label="Your daily fair-use allowance">
+ return <aside className="mb-5 rounded-2xl border border-border bg-cream p-4 text-sm" aria-label="Your daily fair-use allowance">
  <p className="font-medium">Your daily allowance</p>
  {error?<p role="status">{error}</p>:usage?.is_admin && usage.unlimited?<><p className="mt-1">Admin · No personal daily limit</p><p className="mt-1 text-xs text-muted-foreground">Provider quotas and rate limits still apply.</p></>:usage?<><p className="mt-1">Files: {usage.files}/{usage.file_limit}</p>
  <p className="mt-1 text-xs text-muted-foreground">Next reset: {new Date(usage.reset_at || "").toLocaleString("en-GB",{timeZone:"Asia/Colombo",day:"numeric",month:"short",hour:"numeric",minute:"2-digit",hour12:true})} (Sri Lanka). Resuming the same job does not use another file slot. There is no personal AI request limit. Provider quotas still apply.</p></>:<p>Checking your allowance…</p>}
