@@ -1204,8 +1204,8 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
         <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl">
           <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
             <a href="#sn-overview" className="flex items-center gap-2.5" aria-label="SubNexa studio">
-              <span className="grid size-7 place-items-center rounded-lg bg-ink text-background"><Languages className="size-4" /></span>
-              <span className="flex items-baseline gap-1 text-[20px] font-semibold tracking-[-0.04em]">SubNexa<span className="size-1.5 rounded-full bg-alarmalade" /></span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-6 w-auto" />
             </a>
             <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Studio">
               {studioNav.map(item => (
@@ -2132,7 +2132,8 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
         <footer className="mt-12 border-t border-border pt-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <span className="netflix-logo text-lg">SubNexa</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-5 w-auto" />
               <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-content-tertiary">
                 Every story, in Sinhala. Timestamps protected, dialogue reviewed by you.
               </p>

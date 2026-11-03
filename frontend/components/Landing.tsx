@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { motion, MotionConfig } from "motion/react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import QuickGuide from "./QuickGuide";
 import Header from "./Header";
 import { openAuthPopup } from "@/lib/auth-popup";
@@ -48,32 +50,12 @@ const features = [
 
 export default function Landing() {
   const [help, setHelp] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const nodes = root.current?.querySelectorAll<HTMLElement>(".inc-reveal");
-    if (!nodes?.length) return;
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (media.matches) {
-      nodes.forEach((node) => node.classList.add("is-visible"));
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.14, rootMargin: "0px 0px -8% 0px" });
-    nodes.forEach((node) => observer.observe(node));
-    return () => observer.disconnect();
-  }, []);
 
   const signIn = () => openAuthPopup(`${API}/subnexa-auth/login`);
 
   return (
-    <div ref={root} className="relative isolate min-h-screen overflow-x-clip bg-background text-ink">
+    <MotionConfig reducedMotion="user">
+    <div className="relative isolate min-h-screen overflow-x-clip bg-background text-ink">
       <QuickGuide open={help} onOpenChange={setHelp} />
       <Header onGuide={() => setHelp(true)} overlay />
 
@@ -137,8 +119,8 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="inc-fade-up inc-delay-2 relative mx-auto w-full max-w-[540px] lg:max-w-none">
-            <div className="inc-float relative rounded-[24px] border border-ink/10 bg-cream p-3 shadow-[0_40px_80px_-40px_rgba(22,22,24,0.4)]">
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.12 }} className="relative mx-auto w-full max-w-[540px] lg:max-w-none">
+            <Card className="inc-float relative gap-0 rounded-[24px] border-ink/10 bg-cream p-3 shadow-[0_40px_80px_-40px_rgba(22,22,24,0.4)]">
               <div className="overflow-hidden rounded-2xl border border-ink/10 bg-card">
                 <div className="flex items-center gap-1.5 border-b border-ink/10 bg-cream/70 px-4 py-3">
                   <span className="size-2.5 rounded-full bg-[#ff5f57]" />
@@ -416,7 +398,8 @@ export default function Landing() {
         <div className="mx-auto w-full max-w-[1240px] px-5 py-14 sm:px-8">
           <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-sm">
-              <span className="flex items-baseline gap-1.5 text-[24px] font-medium tracking-[-0.03em] text-ink">SubNexa<span className="size-1.5 rounded-full bg-alarmalade" /></span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-6 w-auto" />
               <p className="mt-4 text-[14px] leading-relaxed text-body">
                 Every story, in Sinhala. Timestamps protected, dialogue reviewed by you.
               </p>

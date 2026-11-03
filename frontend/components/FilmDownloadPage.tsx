@@ -53,7 +53,10 @@ export default function FilmDownloadPage({ id, initialItem }: { id: string; init
       <div className="mx-auto max-w-3xl space-y-6 px-5 py-10 sm:px-8">
         <nav className="flex items-center justify-between text-sm">
           <Link href="/library" className="inline-flex items-center gap-1.5 text-body transition-colors hover:text-ink"><ArrowLeft className="size-4" />Subtitle library</Link>
-          <Link href="/" className="flex items-baseline gap-1.5 font-medium tracking-[-0.02em]">SubNexa<span className="size-1.5 rounded-full bg-alarmalade" /></Link>
+          <Link href="/" className="inline-flex items-center" aria-label="SubNexa home">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-5 w-auto" />
+          </Link>
         </nav>
 
         {!item && !error && <div className="flex items-center gap-2 py-16 text-sm text-body"><Loader2 className="size-4 animate-spin" />Loading…</div>}

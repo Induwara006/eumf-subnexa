@@ -116,13 +116,8 @@ export default function Header({ onGuide, overlay = false }: HeaderProps) {
       >
         <div className="mx-auto flex h-[72px] w-full max-w-[1240px] items-center gap-6 px-5 sm:px-8">
           <Link href="/" className="group flex items-center gap-2.5" aria-label="SubNexa home">
-            <span className="grid size-7 place-items-center rounded-lg bg-ink text-background transition-transform duration-300 group-hover:rotate-6">
-              <Languages className="size-4" />
-            </span>
-            <span className="flex items-baseline gap-1 text-[21px] font-semibold tracking-[-0.04em] text-ink">
-              SubNexa
-              <span className="size-1.5 rounded-full bg-alarmalade transition-transform duration-300 group-hover:scale-150" />
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-6 w-auto" />
           </Link>
 
           <div ref={navRef} className="hidden items-center gap-1 lg:flex" aria-label="Main navigation">
@@ -231,7 +226,8 @@ export default function Header({ onGuide, overlay = false }: HeaderProps) {
             <button type="button" aria-label="Close menu" className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
             <div className="absolute inset-y-0 right-0 flex w-[min(88vw,380px)] flex-col border-l border-border bg-background p-5 shadow-2xl">
               <div className="flex items-center justify-between">
-                <span className="flex items-baseline gap-1 text-xl font-semibold tracking-[-0.04em] text-ink">SubNexa<span className="size-1.5 rounded-full bg-alarmalade" /></span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-5 w-auto" />
                 <button type="button" onClick={() => setMobileOpen(false)} className="grid size-9 place-items-center rounded-lg border border-border text-ink" aria-label="Close menu">
                   <X className="size-4" />
                 </button>
