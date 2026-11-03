@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextvars
 import hashlib
+import html
 import logging
 import os
 import re
@@ -91,6 +92,46 @@ def _env(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing server-only configuration: {name}")
     return value
+
+
+def _send_login_confirmation(user):
+    api_key = os.getenv("RESEND_API_KEY", "").strip()
+    sender = os.getenv("RESEND_FROM_EMAIL", "").strip()
+    if not api_key or not sender:
+        _auth_logger.warning("Login confirmation email skipped: Resend configuration is missing")
+        return
+
+    name = str(user.get("name", "")).strip()
+    greeting = f"Hello {name}," if name else "Hello,"
+    safe_greeting = html.escape(greeting)
+    text = (
+        f"{greeting}\n\nYour SubNexa account was just signed in with Google. "
+        "If this wasn't you, secure your Google account."
+    )
+    body = (
+        f"<p>{safe_greeting}</p>"
+        "<p>Your SubNexa account was just signed in with Google.</p>"
+        "<p>If this wasn't you, secure your Google account.</p>"
+    )
+    try:
+        reply = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "from": sender,
+                "to": [user["email"]],
+                "subject": "Your SubNexa sign-in",
+                "text": text,
+                "html": body,
+            },
+            timeout=(3, 8),
+            allow_redirects=False,
+        )
+    except requests.RequestException as exc:
+        _auth_logger.warning("Login confirmation email failed: Resend request error=%s", type(exc).__name__)
+        return
+    if not reply.ok:
+        _auth_logger.warning("Login confirmation email failed: Resend HTTP status=%s", reply.status_code)
 
 
 def _signer() -> URLSafeTimedSerializer:
@@ -374,6 +415,7 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
         stage = "admin_proof" if obj.get("admin_handoff_state") else "session_issue"
         if obj["mode"] == "login":
             user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", ""), "email_verified": True}
+            _send_login_confirmation(user)
             handoff_state = obj.get("admin_handoff_state")
             if handoff_state is not None:
                 # After Google verifies identity, send a one-time proof straight to the opener.

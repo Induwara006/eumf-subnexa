@@ -111,6 +111,8 @@ Backend reads `backend/.env`. All keys stay server-side.
 | `GOOGLE_OAUTH_REDIRECT_URI` | For Google login | Must match the Google Cloud console redirect URI. |
 | `SUBNEXA_SESSION_SECRET` | For Google login | Cookie signing secret. |
 | `SUBNEXA_USER_ENCRYPTION_KEY` | For Google login | Fernet key used to encrypt stored API keys. |
+| `RESEND_API_KEY` | For login confirmation emails | Server-only Resend API key. |
+| `RESEND_FROM_EMAIL` | For login confirmation emails | Sender address verified with Resend, for example `SubNexa <login@your-domain.example>`. |
 | `SUBNEXA_USER_DB` | No | SQLite path, default `subnexa_users.db`. |
 | `SUBNEXA_FRONTEND_URL` | No | Frontend origin for redirects, default `http://localhost:3000`. |
 | `SUBNEXA_COOKIE_SECURE` | No | `true` when serving over HTTPS. |
@@ -121,6 +123,8 @@ Generate a Fernet key:
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
+
+After each successful Google sign-in (including a user's first sign-in), the backend sends a confirmation email through Resend. Set `RESEND_API_KEY` and a Resend-verified `RESEND_FROM_EMAIL` in the backend deployment environment; never put the Resend key in frontend variables or source control. If Resend is unavailable, sign-in still succeeds and the backend logs the email delivery failure.
 
 Frontend:
 
