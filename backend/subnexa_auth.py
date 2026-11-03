@@ -16,8 +16,8 @@ import os
 import re
 import secrets
 import sqlite3
-import time
 import threading
+import time
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlencode
@@ -95,6 +95,17 @@ def _env(name: str) -> str:
     return value
 
 
+WELCOME_TEMPLATE = Path(__file__).with_name("welcome_email.html")
+
+
+def _welcome_html() -> str:
+    try:
+        return WELCOME_TEMPLATE.read_text(encoding="utf-8")
+    except OSError:
+        _auth_logger.warning("Welcome email template not found: welcome_email.html")
+        return ""
+
+
 def _send_login_confirmation(user):
     api_key = os.getenv("RESEND_API_KEY", "").strip()
     sender = os.getenv("RESEND_FROM_EMAIL", "").strip()
@@ -102,17 +113,14 @@ def _send_login_confirmation(user):
         _auth_logger.warning("Login confirmation email skipped: Resend configuration is missing")
         return
 
-    name = str(user.get("name", "")).strip()
-    greeting = f"Hello {name}," if name else "Hello,"
-    safe_greeting = html.escape(greeting)
+    body = _welcome_html()
+    if not body:
+        return
     text = (
-        f"{greeting}\n\nYour SubNexa account was just signed in with Google. "
+        "Thank you for joining SubNexa.\n\n"
+        "Your account is all set. Translate subtitles, explore the Library and "
+        "polish every line in Studio: https://subnexa.lk\n\n"
         "If this wasn't you, secure your Google account."
-    )
-    body = (
-        f"<p>{safe_greeting}</p>"
-        "<p>Your SubNexa account was just signed in with Google.</p>"
-        "<p>If this wasn't you, secure your Google account.</p>"
     )
     try:
         reply = requests.post(
@@ -121,7 +129,7 @@ def _send_login_confirmation(user):
             json={
                 "from": sender,
                 "to": [user["email"]],
-                "subject": "Your SubNexa sign-in",
+                "subject": "Welcome to SubNexa",
                 "text": text,
                 "html": body,
             },
