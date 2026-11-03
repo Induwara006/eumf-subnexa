@@ -28,7 +28,7 @@ export function ensureAdminProof(): Promise<string> {
   if (!popup) return Promise.reject(new Error("Allow popups to verify your Google admin login."));
   pending = new Promise<string>((resolve,reject) => {
     const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("subnexa-admin-verify-v6") : null;
-    let timeout: ReturnType<typeof setTimeout>;
+    let timeout: number;
     let finished = false;
     const finish = (err?: Error, token?: string) => {
       if (finished) return;
