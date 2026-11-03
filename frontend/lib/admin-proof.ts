@@ -24,7 +24,11 @@ export function ensureAdminProof(): Promise<string> {
   const backend = (process.env.NEXT_PUBLIC_SUBNEXA_API_URL || (process.env.NODE_ENV === "production" ? "https://subnexa-backend-x7qa.onrender.com" : "http://localhost:8000")).replace(/\/$/, "");
   const origin = new URL(backend.startsWith("http") ? backend : "https://subnexa-backend-x7qa.onrender.com").origin;
   const state = Array.from(crypto.getRandomValues(new Uint8Array(24)), x => x.toString(16).padStart(2,"0")).join("");
-  const popup = window.open(`${origin}/subnexa-auth/admin/handoff?state=${encodeURIComponent(state)}&origin=${encodeURIComponent(window.location.origin)}`, "subnexa-admin-verify", "width=540,height=660");
+  const width = 540;
+  const height = 660;
+  const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+  const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+  const popup = window.open(`${origin}/subnexa-auth/admin/handoff?state=${encodeURIComponent(state)}&origin=${encodeURIComponent(window.location.origin)}`, "subnexa-admin-verify", `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
   if (!popup) return Promise.reject(new Error("Allow popups to verify your Google admin login."));
   pending = new Promise<string>((resolve,reject) => {
     const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("subnexa-admin-verify-v6") : null;

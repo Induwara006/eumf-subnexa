@@ -14,6 +14,7 @@ import {
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { openAuthPopup } from "@/lib/auth-popup";
 
 type Session = {
   signed_in: boolean;
@@ -77,7 +78,7 @@ export default function SubNexaGoogleAccount() {
             </p>
           </div>
           <Button asChild size="lg" className="h-10 w-full gap-2">
-            <a href={`${API}/subnexa-auth/login`}>
+            <a href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); openAuthPopup(`${API}/subnexa-auth/login`); }}>
               <KeyRound className="size-4" />Continue with Google
             </a>
           </Button>

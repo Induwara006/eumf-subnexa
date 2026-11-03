@@ -23,6 +23,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import QuickGuide from "./QuickGuide";
+import Header from "./Header";
+import { openAuthPopup } from "@/lib/auth-popup";
 
 const API = (process.env.NEXT_PUBLIC_SUBNEXA_API_URL || (process.env.NODE_ENV === "production" ? "/subnexa-api" : "http://localhost:8000")).replace(/\/$/, "");
 
@@ -46,26 +48,7 @@ const features = [
 
 export default function Landing() {
   const [help, setHelp] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      setScrolled(window.scrollY > 16);
-    };
-    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
-    update();
-    window.addEventListener("scroll", schedule, { passive: true });
-    media.addEventListener("change", schedule);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", schedule);
-      media.removeEventListener("change", schedule);
-    };
-  }, []);
 
   useEffect(() => {
     const nodes = root.current?.querySelectorAll<HTMLElement>(".inc-reveal");
@@ -87,47 +70,23 @@ export default function Landing() {
     return () => observer.disconnect();
   }, []);
 
-  return (
-    <div ref={root} className="relative isolate min-h-screen overflow-x-clip bg-white text-ink">
-      <QuickGuide open={help} onOpenChange={setHelp} />
+  const signIn = () => openAuthPopup(`${API}/subnexa-auth/login`);
 
-      <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${scrolled ? "border-b border-border bg-white/85 backdrop-blur-xl" : "bg-transparent"}`}>
-        <div className="mx-auto flex h-[72px] w-full max-w-[1240px] items-center gap-8 px-5 sm:px-8">
-          <a href="#top" className="group flex items-baseline gap-1.5 text-[22px] font-medium tracking-[-0.03em]" aria-label="SubNexa home">
-            <span>SubNexa</span>
-            <span className="size-1.5 rounded-full bg-alarmalade transition-transform duration-300 group-hover:scale-150" />
-          </a>
-          <nav className="hidden items-center gap-7 text-[14px] text-body md:flex" aria-label="Main">
-            <a href="#sn-features" className="inc-underline transition-colors hover:text-ink">How it works</a>
-            <a href="#sn-platform" className="inc-underline transition-colors hover:text-ink">Studio</a>
-            <Link href="/library" className="inc-underline transition-colors hover:text-ink">Library</Link>
-            <a href={`${API}/subnexa-auth/login`} className="inc-underline transition-colors hover:text-ink">Sign in</a>
-          </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <Button aria-label="Guide" variant="ghost" size="sm" className="hidden gap-2 text-body hover:text-ink sm:inline-flex" onClick={() => setHelp(true)}>
-              <CircleHelp className="size-4" /><span>Guide</span>
-            </Button>
-            <Button asChild size="sm" className="group gap-2">
-              <a href={`${API}/subnexa-auth/login`}>
-                <LogIn className="size-4" />
-                Get started
-                <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-              </a>
-            </Button>
-          </div>
-        </div>
-      </header>
+  return (
+    <div ref={root} className="relative isolate min-h-screen overflow-x-clip bg-background text-ink">
+      <QuickGuide open={help} onOpenChange={setHelp} />
+      <Header onGuide={() => setHelp(true)} overlay />
 
       <section id="top" className="relative isolate overflow-hidden pb-16 pt-32 sm:pt-40">
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-0 inc-grid-lines opacity-60" />
-          <div className="absolute -left-32 top-24 size-[520px] rounded-full bg-[radial-gradient(circle_at_center,#fddfd9_0%,transparent_68%)] blur-2xl" />
-          <div className="absolute -right-24 top-0 size-[560px] rounded-full bg-[radial-gradient(circle_at_center,#f1ebe2_0%,transparent_70%)]" />
+          <div className="absolute -left-32 top-24 size-[520px] rounded-full bg-[radial-gradient(circle_at_center,#fddfd9_0%,transparent_68%)] dark:bg-[radial-gradient(circle_at_center,rgba(255,106,69,0.14)_0%,transparent_68%)] blur-2xl" />
+          <div className="absolute -right-24 top-0 size-[560px] rounded-full bg-[radial-gradient(circle_at_center,#f1ebe2_0%,transparent_70%)] dark:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_0%,transparent_70%)]" />
         </div>
 
         <div className="mx-auto grid w-full max-w-[1240px] items-center gap-14 px-5 sm:px-8 lg:grid-cols-[1.02fr_0.98fr] lg:gap-10">
           <div className="relative z-10">
-            <div className="inc-fade-up mb-7 inline-flex items-center gap-2.5 rounded-full border border-ink/10 bg-white/70 py-1.5 pl-2.5 pr-4 text-[12px] font-medium tracking-[0.02em] text-body backdrop-blur">
+            <div className="inc-fade-up mb-7 inline-flex items-center gap-2.5 rounded-full border border-ink/10 bg-background/70 py-1.5 pl-2.5 pr-4 text-[12px] font-medium tracking-[0.02em] text-body backdrop-blur">
               <span className="relative flex size-2">
                 <span className="absolute inline-flex size-full rounded-full bg-alarmalade opacity-75" style={{ animation: "inc-pulse-ring 2.4s ease-out infinite" }} />
                 <span className="relative inline-flex size-2 rounded-full bg-alarmalade" />
@@ -138,7 +97,7 @@ export default function Landing() {
             <h1 className="inc-fade-up inc-delay-1 text-[clamp(3.1rem,6.4vw,5.6rem)] font-normal leading-[0.96] tracking-[-0.03em] text-ink">
               Every story,
               <br />
-              in <span className="relative inline-block italic text-alarmalade">
+              in <span className="relative inline-block text-alarmalade">
                 Sinhala
                 <svg className="absolute -bottom-2 left-0 w-full" height="14" viewBox="0 0 220 14" fill="none" preserveAspectRatio="none" aria-hidden>
                   <path d="M2 10.5C44 4.5 96 2.5 218 6.5" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
@@ -154,7 +113,7 @@ export default function Landing() {
 
             <div className="inc-fade-up inc-delay-3 mt-9 flex flex-wrap items-center gap-3">
               <Button asChild size="lg" className="group">
-                <a href={`${API}/subnexa-auth/login`}>
+                <a href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); signIn(); }}>
                   <LogIn className="size-4" />
                   Sign in to translate
                   <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -180,12 +139,12 @@ export default function Landing() {
 
           <div className="inc-fade-up inc-delay-2 relative mx-auto w-full max-w-[540px] lg:max-w-none">
             <div className="inc-float relative rounded-[24px] border border-ink/10 bg-cream p-3 shadow-[0_40px_80px_-40px_rgba(22,22,24,0.4)]">
-              <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white">
+              <div className="overflow-hidden rounded-2xl border border-ink/10 bg-card">
                 <div className="flex items-center gap-1.5 border-b border-ink/10 bg-cream/70 px-4 py-3">
                   <span className="size-2.5 rounded-full bg-[#ff5f57]" />
                   <span className="size-2.5 rounded-full bg-[#febc2e]" />
                   <span className="size-2.5 rounded-full bg-[#28c840]" />
-                  <span className="ml-3 flex-1 truncate rounded-md bg-white px-2.5 py-1 font-mono text-[10px] text-content-tertiary">studio.subnexa.app / translate</span>
+                  <span className="ml-3 flex-1 truncate rounded-md bg-background px-2.5 py-1 font-mono text-[10px] text-content-tertiary">studio.subnexa.app / translate</span>
                 </div>
                 <div className="grid gap-0 sm:grid-cols-[1.15fr_1fr]">
                   <div className="border-b border-ink/10 p-5 sm:border-b-0 sm:border-r">
@@ -204,7 +163,7 @@ export default function Landing() {
                       <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] text-success"><span className="size-1.5 rounded-full bg-success inc-blink" />live</span>
                     </div>
                   </div>
-                  <div className="relative bg-ink p-5 text-[#f7f7f8]">
+                  <div className="relative bg-[#161618] p-5 text-[#f7f7f8]">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/45">Target · සිංහල</span>
                       <Badge className="h-5 bg-alarmalade/15 px-2 text-[9px] text-alarmalade" variant="outline">AI</Badge>
@@ -223,14 +182,14 @@ export default function Landing() {
               </div>
             </div>
 
-            <div className="absolute -left-4 top-[38%] hidden items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 shadow-[0_18px_40px_-24px_rgba(22,22,24,0.55)] sm:flex" style={{ animation: "inc-float 7s ease-in-out infinite", animationDelay: "1.2s" }}>
+            <div className="absolute -left-4 top-[38%] hidden items-center gap-2 rounded-xl border border-ink/10 bg-card px-3.5 py-2.5 shadow-[0_18px_40px_-24px_rgba(22,22,24,0.55)] sm:flex" style={{ animation: "inc-float 7s ease-in-out infinite", animationDelay: "1.2s" }}>
               <ShieldCheck className="size-4 text-success" />
               <div className="leading-tight">
                 <p className="text-[11px] font-medium text-ink">Timestamps intact</p>
                 <p className="font-mono text-[10px] text-content-tertiary">0 changes</p>
               </div>
             </div>
-            <div className="absolute -right-3 bottom-10 hidden items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 shadow-[0_18px_40px_-24px_rgba(22,22,24,0.55)] sm:flex" style={{ animation: "inc-float 8s ease-in-out infinite", animationDelay: "0.6s" }}>
+            <div className="absolute -right-3 bottom-10 hidden items-center gap-2 rounded-xl border border-ink/10 bg-card px-3.5 py-2.5 shadow-[0_18px_40px_-24px_rgba(22,22,24,0.55)] sm:flex" style={{ animation: "inc-float 8s ease-in-out infinite", animationDelay: "0.6s" }}>
               <Globe2 className="size-4 text-alarmalade" />
               <div className="leading-tight">
                 <p className="text-[11px] font-medium text-ink">12,400+ cues</p>
@@ -262,7 +221,7 @@ export default function Landing() {
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-alarmalade">How it works</p>
             <h2 className="mt-4 max-w-2xl text-[clamp(2.2rem,4.2vw,3.6rem)] leading-[1.02] tracking-[-0.025em]">
-              Four steps.<br /><span className="italic text-body">Zero timing changes.</span>
+              Four steps.<br /><span className="text-body">Zero timing changes.</span>
             </h2>
           </div>
           <p className="max-w-sm text-[16px] leading-relaxed text-body">
@@ -274,7 +233,7 @@ export default function Landing() {
           {steps.map((item, index) => (
             <article key={item.step} className="inc-reveal group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-cream p-6 transition-all duration-500 hover:-translate-y-1 hover:border-ink/25 hover:shadow-[0_24px_50px_-32px_rgba(22,22,24,0.4)]" style={{ transitionDelay: `${index * 70}ms` }}>
               <div className="flex items-center justify-between">
-                <span className="grid size-11 place-items-center rounded-xl bg-white text-ink ring-1 ring-ink/10 transition-colors duration-300 group-hover:bg-alarmalade group-hover:text-white">
+                <span className="grid size-11 place-items-center rounded-xl bg-card text-ink ring-1 ring-ink/10 transition-colors duration-300 group-hover:bg-alarmalade group-hover:text-white">
                   <item.icon className="size-5" />
                 </span>
                 <span className="font-mono text-[11px] tracking-[0.2em] text-content-tertiary">{item.step}</span>
@@ -296,7 +255,7 @@ export default function Landing() {
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-alarmalade">The studio</p>
             <h2 className="mt-4 text-[clamp(2.2rem,4.2vw,3.6rem)] leading-[1.02] text-white">
-              A studio that keeps<br /><span className="italic text-white/60">every cue in place.</span>
+              A studio that keeps<br /><span className="text-white/60">every cue in place.</span>
             </h2>
             <p className="mt-6 max-w-md text-[16px] leading-relaxed text-white/60">
               Translate, compare and edit in one view. The timeline is read-only by design, so the only thing that changes is the language.
@@ -310,7 +269,7 @@ export default function Landing() {
               ))}
             </ul>
             <Button asChild size="lg" className="group mt-9">
-              <a href={`${API}/subnexa-auth/login`}>
+              <a href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); signIn(); }}>
                 Open the studio
                 <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
               </a>
@@ -361,12 +320,12 @@ export default function Landing() {
         <div className="inc-reveal max-w-2xl">
           <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-alarmalade">Built for the details</p>
           <h2 className="mt-4 text-[clamp(2.2rem,4.2vw,3.6rem)] leading-[1.02]">
-            Everything a subtitle<br /><span className="italic text-body">actually needs.</span>
+            Everything a subtitle<br /><span className="text-body">actually needs.</span>
           </h2>
         </div>
         <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {features.map((item) => (
-            <article key={item.title} className="inc-reveal group relative bg-white p-7 transition-colors duration-300 hover:bg-cream">
+            <article key={item.title} className="inc-reveal group relative bg-card p-7 transition-colors duration-300 hover:bg-cream">
               <span className="grid size-10 place-items-center rounded-xl bg-cream text-ink ring-1 ring-ink/10 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:bg-alarmalade group-hover:text-white">
                 <item.icon className="size-[18px]" />
               </span>
@@ -382,7 +341,7 @@ export default function Landing() {
           <div className="inc-reveal">
             <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-alarmalade">The library</p>
             <h2 className="mt-4 text-[clamp(2.2rem,4vw,3.4rem)] leading-[1.02]">
-              Watch now.<br /><span className="italic text-body">Subtitles already there.</span>
+              Watch now.<br /><span className="text-body">Subtitles already there.</span>
             </h2>
             <p className="mt-6 max-w-md text-[16px] leading-relaxed text-body">
               Browse ready-made Sinhala subtitles for films and series. Search by title and download instantly, no sign-in needed.
@@ -414,7 +373,7 @@ export default function Landing() {
                   </div>
                   <div>
                     <span className="mb-2 block h-px w-6" style={{ background: film.accent }} />
-                    <p className="font-serif text-[17px] leading-tight">{film.title}</p>
+                    <p className="font-medium text-[17px] leading-tight">{film.title}</p>
                     <p className="mt-1 text-[10px] text-white/45">සිංහල උපසිරැසි</p>
                   </div>
                 </div>
@@ -432,14 +391,14 @@ export default function Landing() {
           <div className="relative max-w-2xl">
             <Badge className="bg-white/15 text-white" variant="outline">Start in under a minute</Badge>
             <h2 className="mt-6 text-[clamp(2.4rem,5vw,4.2rem)] leading-[0.98] text-white">
-              Bring the next story home<br /><span className="italic text-white/80">in Sinhala.</span>
+              Bring the next story home<br /><span className="text-white/80">in Sinhala.</span>
             </h2>
             <p className="mt-6 max-w-lg text-[17px] leading-relaxed text-white/85">
               Sign in with Google, upload a subtitle file, and let the studio do the rest. Your timing, names and review notes stay untouched.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="group bg-ink text-white hover:bg-black">
-                <a href={`${API}/subnexa-auth/login`}>
+              <Button asChild size="lg" className="group bg-[#161618] text-white hover:bg-black">
+                <a href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); signIn(); }}>
                   <LogIn className="size-4" />
                   Get started free
                   <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -453,7 +412,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-border bg-white">
+      <footer className="border-t border-border bg-background">
         <div className="mx-auto w-full max-w-[1240px] px-5 py-14 sm:px-8">
           <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-sm">
@@ -471,7 +430,7 @@ export default function Landing() {
               </div>
               <div className="space-y-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-content-tertiary">Account</p>
-                <a href={`${API}/subnexa-auth/login`} className="block text-body transition-colors hover:text-ink">Sign in</a>
+                <a href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); signIn(); }} className="block text-body transition-colors hover:text-ink">Sign in</a>
                 <button type="button" onClick={() => setHelp(true)} className="block text-body transition-colors hover:text-ink">Guide</button>
               </div>
               <div className="space-y-3">

@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ------------------------------------------------------------------ */
-/*  Typefaces — STK Bureau Sans / Serif + Geist Mono (incident.io)     */
+/*  Typefaces — Geist Sans / Mono + Sinhala                             */
 /* ------------------------------------------------------------------ */
 @font-face {
   font-family: "STK Bureau Sans";
@@ -19,13 +19,6 @@
   src: url("/fonts/stkbureau_sans_book-s.32-u__56mt2e1.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "STK Bureau Sans";
-  src: url("/fonts/stkbureau_sans_italic-s.0d24lopg0u92g.woff2") format("woff2");
-  font-weight: 400;
-  font-style: italic;
   font-display: swap;
 }
 @font-face {
@@ -54,13 +47,6 @@
   src: url("/fonts/stkbureau_serif_book-s.p.0_js8gy1zifgl.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "STK Bureau Serif";
-  src: url("/fonts/stkbureau_serif_italic.3v93rjhu53cnh.woff2") format("woff2");
-  font-weight: 400;
-  font-style: italic;
   font-display: swap;
 }
 @font-face {
@@ -111,12 +97,12 @@
   --color-content-primary: var(--content-primary);
   --color-content-secondary: var(--content-secondary);
   --color-content-tertiary: var(--content-tertiary);
-  --font-sans: var(--font-stk-sans);
-  --font-serif: var(--font-stk-serif);
-  --font-heading: var(--font-stk-serif);
-  --font-display: var(--font-stk-serif);
+  --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-geist-sans);
+  --font-heading: var(--font-geist-sans);
+  --font-display: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-geist: var(--font-stk-sans);
+  --font-geist: var(--font-geist-sans);
   --font-sinhala: var(--font-sinhala);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -174,8 +160,8 @@
   --content-secondary: #5f5f68;
   --content-tertiary: #787470;
 
-  --font-stk-sans: "STK Bureau Sans", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --font-stk-serif: "STK Bureau Serif", Georgia, ui-serif, serif;
+  --font-stk-sans: var(--font-geist-sans), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-stk-serif: var(--font-geist-sans), Georgia, ui-serif, serif;
   --font-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --background: #ffffff;
@@ -214,6 +200,71 @@
   --sidebar-ring: #f25533;
 }
 
+.dark {
+  color-scheme: dark;
+  --ink: #f4f1ec;
+  --body: #a8a29b;
+  --cream: #131315;
+  --sand: #1b1b1f;
+  --sand-strong: #26262c;
+  --surface-primary: #0c0c0d;
+  --surface-secondary: #131315;
+  --surface-tertiary: #1b1b1f;
+  --surface-quaternary: #26262c;
+  --content-primary: #f4f1ec;
+  --content-secondary: #a8a29b;
+  --content-tertiary: #8a857f;
+
+  --background: #0c0c0d;
+  --foreground: #f4f1ec;
+  --card: #141416;
+  --card-foreground: #f4f1ec;
+  --popover: #18181b;
+  --popover-foreground: #f4f1ec;
+  --primary: #ff6a45;
+  --primary-foreground: #ffffff;
+  --secondary: #1b1b1f;
+  --secondary-foreground: #f4f1ec;
+  --muted: #1b1b1f;
+  --muted-foreground: #a8a29b;
+  --accent: #26262c;
+  --accent-foreground: #f4f1ec;
+  --destructive: #f87171;
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 20%);
+  --ring: #ff6a45;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --chart-1: #ff6a45;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #c084fc;
+  --chart-5: #26262c;
+  --sidebar: #131315;
+  --sidebar-foreground: #f4f1ec;
+  --sidebar-primary: #ff6a45;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1b1b1f;
+  --sidebar-accent-foreground: #f4f1ec;
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-ring: #ff6a45;
+}
+
+.dark .inc-card:hover {
+  box-shadow: 0 24px 50px -28px rgb(0 0 0 / 0.7);
+}
+
+.dark .netflix-topbar-scrolled {
+  background: color-mix(in oklab, #0c0c0d 88%, transparent);
+}
+
+.dark .inc-shimmer-text {
+  background: linear-gradient(100deg, var(--ink) 20%, var(--alarmalade) 45%, var(--ink) 70%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -228,18 +279,19 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-stk-sans);
-    font-size: 18px;
+    font-family: var(--font-geist-sans);
+    font-size: 17px;
     line-height: 1.4;
     letter-spacing: -0.18px;
     min-height: 100vh;
     font-optical-sizing: auto;
   }
   h1, h2, h3, h4 {
-    font-family: var(--font-stk-serif);
-    font-weight: 400;
-    letter-spacing: -0.02em;
-    line-height: 1.02;
+    font-family: var(--font-geist-sans);
+    font-weight: 500;
+    font-style: normal;
+    letter-spacing: -0.035em;
+    line-height: 1.04;
     color: var(--ink);
   }
   ::selection {
@@ -390,7 +442,7 @@
 .inc-link-arrow:hover svg { transform: translateX(4px); }
 
 .inc-dark {
-  background: var(--ink);
+  background: #161618;
   color: #f7f7f8;
   --border: rgb(255 255 255 / 14%);
   --foreground: #f7f7f8;
@@ -416,7 +468,7 @@
 }
 .netflix-topbar { background: transparent; }
 .netflix-topbar-scrolled {
-  background: color-mix(in oklab, #ffffff 88%, transparent);
+  background: color-mix(in oklab, var(--background) 88%, transparent);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
 }

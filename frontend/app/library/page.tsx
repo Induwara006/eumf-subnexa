@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, LogIn } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import { LibraryBrowser } from "../../components/SubtitleLibrary";
+import Header from "@/components/Header";
 
 export const metadata: Metadata = {
   title: "Subtitle library — SubNexa",
@@ -17,33 +14,18 @@ const API = (
 
 export default function LibraryPage() {
   return (
-    <div className="min-h-screen bg-white text-ink">
-      <header className="sticky top-0 z-40 border-b border-border bg-white/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-[72px] w-full max-w-[1240px] items-center justify-between gap-3 px-5 sm:px-8">
-          <Link href="/" className="flex items-baseline gap-1.5 text-[22px] font-medium tracking-[-0.03em]" aria-label="SubNexa home">
-            <span>SubNexa</span>
-            <span className="size-1.5 rounded-full bg-alarmalade" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" className="gap-1.5 text-body hover:text-ink">
-              <Link href="/"><ArrowLeft className="size-4" />Home</Link>
-            </Button>
-            <Button asChild className="gap-2">
-              <a href={`${API}/subnexa-auth/login`}><LogIn className="size-4" />Sign in to translate</a>
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background text-ink">
+      <Header />
 
       <main className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[360px]">
           <div className="absolute inset-0 inc-grid-lines opacity-50" />
-          <div className="absolute -right-20 -top-24 size-[460px] rounded-full bg-[radial-gradient(circle_at_center,#fddfd9_0%,transparent_70%)] blur-2xl" />
+          <div className="absolute -right-20 -top-24 size-[460px] rounded-full bg-[radial-gradient(circle_at_center,#fddfd9_0%,transparent_70%)] dark:bg-[radial-gradient(circle_at_center,rgba(255,106,69,0.14)_0%,transparent_70%)] blur-2xl" />
         </div>
         <div className="mx-auto w-full max-w-[1240px] px-5 pb-20 pt-14 sm:px-8 sm:pt-20">
           <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-alarmalade">The library</p>
           <h1 className="mt-4 max-w-3xl text-[clamp(2.5rem,5vw,4.2rem)] leading-[0.98]">
-            Sinhala subtitles,<br /><span className="italic text-body">ready when you are.</span>
+            Sinhala subtitles,<br /><span className="text-body">ready when you are.</span>
           </h1>
           <p className="mb-10 mt-6 max-w-xl text-[17px] leading-relaxed text-body">
             Ready-made Sinhala subtitles for films and series. Search by title and download instantly. No sign-in needed.

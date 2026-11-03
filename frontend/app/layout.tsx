@@ -5,6 +5,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 import BackendWarmup from "@/components/BackendWarmup";
 
+const geist = localFont({
+  variable: "--font-geist-sans",
+  display: "swap",
+  src: [{ path: "./fonts/geist-latin.woff2", weight: "100 900", style: "normal" }],
+});
+
 const notoSinhala = localFont({
   variable: "--font-sinhala",
   display: "swap",
@@ -18,11 +24,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${notoSinhala.variable} h-full antialiased`}>
+    <html lang="en" suppressHydrationWarning className={`${geist.variable} ${notoSinhala.variable} h-full antialiased`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("subnexa-theme");var d=t?t==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;if(d)document.documentElement.classList.add("dark");}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <TooltipProvider>{children}</TooltipProvider>
         <BackendWarmup />
-        <Toaster theme="light" position="bottom-right" />
+        <Toaster theme="system" position="bottom-right" />
       </body>
     </html>
   );
