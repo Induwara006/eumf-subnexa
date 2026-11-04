@@ -9,6 +9,8 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone
+from subnexa_cf_usage import record as record_cf_usage
 from types import SimpleNamespace
 
 import requests
@@ -112,13 +114,16 @@ class _CloudflareModels:
             try:
                 from subnexa_fairuse import reserve_request
                 reserve_request()
+                started = datetime.now(timezone.utc)
                 result = requests.post(
                     url, json=data,
                     headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
                     timeout=(10, 90),
                 )
             except requests.RequestException as exc:
+                record_cf_usage(started=started)
                 raise CloudflareAIError("unavailable") from exc
+            payload = None
             finish = "unknown"
             content_chars = 0
             try:
@@ -154,6 +159,7 @@ class _CloudflareModels:
                 if attempt == 3 or error.reason == "content_filtered":
                     raise
             finally:
+                record_cf_usage(payload, started)
                 result.close()
             print(f"[SubNexa 0.2] retrying malformed response ({attempt}/2)", flush=True)
             time.sleep(attempt)

@@ -303,6 +303,27 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
     void refreshQuota();
     return () => { stopped = true; controller.abort(); if (timer) clearTimeout(timer); };
   }, [modelChoice]);
+  const [cfUsage, setCfUsage] = useState<{ available: boolean; used?: number; requests_used?: number; missing?: number; pending?: number; incomplete?: boolean; reset_at?: string } | null>(null);
+  useEffect(() => {
+    if (modelChoice !== "subnexa_02") return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    async function refresh() {
+      try {
+        const response = await fetch(`${API}/cloudflare-usage`, { credentials: "include", cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Usage unavailable");
+        const data = await response.json();
+        if (!stopped) setCfUsage(data);
+      } catch {
+        if (!stopped) setCfUsage({ available: false });
+      } finally {
+        if (!stopped) timer = setTimeout(() => void refresh(), 30000);
+      }
+    }
+    void refresh();
+    return () => { stopped = true; controller.abort(); if (timer) clearTimeout(timer); };
+  }, [modelChoice, translating]);
   const [geminiUsage, setGeminiUsage] = useState<{ available: boolean; used?: number; remaining?: number | null; missing?: number; incomplete?: boolean; pending?: number } | null>(null);
   const etaSample = useRef<{ started: number; baseline: number; last: number; updates: number } | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -1194,6 +1215,9 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               ))}
             </nav>
             <div className="ml-auto flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setLibrary(true)} aria-label="Open subtitle library">
+                <BookOpen className="size-4" /><span className="hidden sm:inline">Library</span>
+              </Button>
               <div className="relative hidden items-center gap-2 rounded-lg border border-border bg-ink/[0.04] px-3 md:flex">
                 <Search className="size-3.5 text-content-tertiary" />
                 <Input
@@ -1601,6 +1625,17 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 <Progress value={progress} className="h-1.5" aria-label="Translation progress" />
                 {modelChoice === "subnexa_pro" && translating && cooldown > 0 && (
                   <p className="text-xs text-amber-400" role="status">Rate-limit cooldown: {cooldown}s — translation continues automatically.</p>
+                )}
+                {modelChoice === "subnexa_02" && (
+                  <div className="text-xs text-muted-foreground space-y-1" aria-label="Cloudflare Workers AI usage">
+                    <p className="font-medium">Cloudflare Workers AI · Today's site usage</p>
+                    <p>Tracked tokens today: {cfUsage?.available ? (cfUsage.used ?? 0).toLocaleString() : "Unavailable — check usage setup"}</p>
+                    <p>Tracked request attempts today: {cfUsage?.available ? (cfUsage.requests_used ?? 0).toLocaleString() : "Unavailable"}</p>
+                    {cfUsage?.available && cfUsage.reset_at && <p>Daily reset: {new Date(cfUsage.reset_at).toLocaleString("en-GB", { timeZone: "Asia/Colombo", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })} (Sri Lanka)</p>}
+                    <p>Saved in Supabase · All site users and Cloudflare pool accounts combined. Tracking starts after this update; refreshes every 30 seconds.</p>
+                    <p>Tokens are observed usage, not Cloudflare credits or a live remaining balance.</p>
+                    {cfUsage?.incomplete && <p role="status">Totals may be incomplete. {cfUsage.missing ?? 0} attempts have no token usage. {cfUsage.pending ?? 0} records pending sync.</p>}
+                  </div>
                 )}
                 {modelChoice === "subnexa_pro" && (
                   <div className="text-xs text-muted-foreground space-y-1">

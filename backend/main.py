@@ -393,6 +393,16 @@ async def subnexa_models():
                         headers={"Cache-Control": "no-store"})
 
 
+@app.get("/cloudflare-usage")
+async def cloudflare_usage_status(request: Request):
+    from subnexa_auth import _user
+    from subnexa_cf_usage import snapshot
+    from fastapi.responses import JSONResponse
+    if not _user(request):
+        raise HTTPException(status_code=401, detail="Sign in to view usage")
+    return JSONResponse(await asyncio.to_thread(snapshot), headers={"Cache-Control": "no-store"})
+
+
 @app.get("/quota")
 async def quota_status(request: Request):
     from subnexa_auth import _user
