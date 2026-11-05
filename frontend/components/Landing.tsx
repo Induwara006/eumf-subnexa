@@ -435,6 +435,8 @@ export default function Landing() {
               </div>
               <div className="space-y-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-content-tertiary">More</p>
+                <Link href="/privacy" className="block text-body transition-colors hover:text-ink">Privacy Policy</Link>
+                <Link href="/cookies" className="block text-body transition-colors hover:text-ink">Cookie Policy</Link>
                 <a href="#top" className="block text-body transition-colors hover:text-ink">Back to top</a>
                 <a href="https://zagan.space" target="_blank" rel="noreferrer" className="block text-body transition-colors hover:text-ink">Design by Zagan</a>
               </div>
