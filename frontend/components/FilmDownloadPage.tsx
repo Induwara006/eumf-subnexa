@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { filmPath } from "@/lib/library-slug";
 
-type FilmItem = {
+export type FilmItem = {
   id: string;
   title: string;
   year: string;
@@ -21,12 +21,15 @@ type FilmItem = {
   translated_by?: string | null;
 };
 
-export default function FilmDownloadPage({ id }: { id: string }) {
-  const [item, setItem] = useState<FilmItem | null>(null);
+export default function FilmDownloadPage({ id, initialItem }: { id: string; initialItem?: FilmItem }) {
+  const [fetchedItem, setItem] = useState<FilmItem | null>(null);
+  const item = initialItem ?? fetchedItem;
   const [error, setError] = useState("");
   const [posterFailed, setPosterFailed] = useState(false);
 
   useEffect(() => {
+    // Server-rendered movie pages already have their public data and metadata.
+    if (initialItem) return;
     const controller = new AbortController();
     (async () => {
       try {
@@ -43,7 +46,7 @@ export default function FilmDownloadPage({ id }: { id: string }) {
       }
     })();
     return () => controller.abort();
-  }, [id]);
+  }, [id, initialItem]);
 
   return (
     <main className="min-h-screen bg-background text-ink">
@@ -75,7 +78,7 @@ export default function FilmDownloadPage({ id }: { id: string }) {
             <div className="min-w-0 flex-1 space-y-5">
               <div>
                 <h1 className="text-3xl leading-tight">{item.title}{item.year ? <span className="font-normal text-body"> ({item.year})</span> : null}</h1>
-                <p className="mt-2 text-sm text-body">{[item.language, item.genre].filter(Boolean).join(" · ")} subtitles</p>
+                <p className="mt-2 text-sm text-body">{[item.language, item.genre].filter(Boolean).join(" · ")} subtitles · <span lang="si">සිංහල උපසිරැසි</span></p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs text-body">
                 <Badge className="uppercase">{item.format}</Badge>
@@ -93,3 +96,4 @@ export default function FilmDownloadPage({ id }: { id: string }) {
     </main>
   );
 }
+
