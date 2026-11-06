@@ -11,6 +11,7 @@ const sections = [
     title: "Information we handle",
     paragraphs: [
       "When you sign in with Google, SubNexa receives your Google account name, email address, and Google account identifier to verify your identity and maintain your session. SubNexa does not receive your Google password.",
+      "Our user registry stores an internal account ID, your Google account identifier, email address, name, Google profile picture URL when available, registration date, last login time, last-seen time, and account blocked status. The registry is stored in Supabase and is not a public user directory.",
       "When you use the subtitle studio, the subtitle file and text, translation output, chosen options, and glossary terms you provide are processed to deliver the service. Translation progress may be saved on the backend so a job can resume. The current service does not automatically delete saved translation progress on a published schedule.",
       "If you use account or administrator features, SubNexa may process information needed to authenticate you and provide those features. Hosting and infrastructure providers may also process technical information such as IP address, request time, and error logs to operate and protect the service.",
     ],
@@ -20,6 +21,14 @@ const sections = [
     paragraphs: [
       "We use information to sign you in, provide subtitle translation and library features, save and resume translation progress, send sign-in confirmation emails when configured, and maintain and protect SubNexa.",
       "We do not sell personal information or use subtitle content for advertising.",
+    ],
+  },
+  {
+    title: "Activity and online presence",
+    paragraphs: [
+      "While you are signed in and the SubNexa page is visible, the site sends periodic activity heartbeats, normally about every 30 seconds, to update your last-seen time. Authorized administrators can view registered users, recent activity timestamps, and online status to operate and protect the service.",
+      "The administrator online list normally treats an account as online when it was seen within the previous 90 seconds. The separate service-capacity counter uses a 180-second activity window for non-administrator users. These windows determine online status; they are not data-deletion periods.",
+      "We use registration, login, activity, and blocked-status information for account administration, usage and availability statistics, capacity management, and abuse prevention. Presence records indicate recent activity on SubNexa, not activity on other websites.",
     ],
   },
   {
@@ -40,6 +49,7 @@ const sections = [
     title: "Storage and retention",
     paragraphs: [
       "Some interface preferences and glossary settings are stored in your browser's local storage. Authentication and administrator session cookies expire as described in the Cookie Policy.",
+      "Account registry records and their latest login and activity timestamps remain stored after you go offline or sign out. We have not established a fixed automatic deletion schedule for these records. Signing out or revoking Google access does not itself delete the registry record. You can request account-data deletion using the contact below.",
       "Translation progress and connected-project records may remain in backend storage while retained by the service operator. The retention period can depend on the backend hosting and storage configuration; there is currently no self-service deletion tool for these records.",
     ],
   },
@@ -72,7 +82,7 @@ export default function PrivacyPolicyPage() {
           </p>
           <h1 className="mt-3 text-4xl tracking-tight sm:text-5xl">Privacy Policy</h1>
           <p className="mt-4 text-sm text-content-tertiary">
-            Effective date: November 5, 2026
+            Effective date: November 6, 2026
           </p>
           <p className="mt-5 text-base leading-7 text-body">
             This policy explains how SubNexa handles information when you visit
@@ -107,3 +117,4 @@ export default function PrivacyPolicyPage() {
     </main>
   );
 }
+
