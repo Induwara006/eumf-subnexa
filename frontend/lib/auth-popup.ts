@@ -17,17 +17,9 @@ export function openCenteredWindow(url: string, name: string, width = 540, heigh
 }
 
 export function openAuthPopup(url: string) {
-  const popup = openCenteredWindow(url, "subnexa-google-auth", 540, 680);
-  if (!popup) {
-    window.location.href = url;
-    return null;
-  }
-  popup.focus();
-  const timer = window.setInterval(() => {
-    if (popup.closed) {
-      window.clearInterval(timer);
-      window.dispatchEvent(new Event("subnexa-session-changed"));
-    }
-  }, 800);
-  return popup;
+  if (typeof window === "undefined") return null;
+  const target = new URL(url, window.location.origin);
+  if (target.pathname.endsWith("/subnexa-auth/login")) target.searchParams.set("return_to", window.location.pathname + window.location.search);
+  window.location.assign(target.toString());
+  return null;
 }

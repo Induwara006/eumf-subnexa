@@ -14,7 +14,7 @@ import {
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { openAuthPopup } from "@/lib/auth-popup";
+import { openAuthPopup } from "@/lib/same-tab-login";
 
 type Session = {
   signed_in: boolean;

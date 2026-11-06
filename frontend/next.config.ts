@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   async headers() {
-    return [{
+    return [{ source: "/admin/:path*", headers: [{key:"Cache-Control",value:"no-store"}] }, {
       source: "/:path*",
       headers: [
         { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },

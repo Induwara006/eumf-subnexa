@@ -118,6 +118,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://eumf-subnexa.vercel.app",
+        "https://subnexa.lk",
+        "https://www.subnexa.lk",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
@@ -961,3 +963,8 @@ app.include_router(community_upload_router)
 @app.exception_handler(FairUseError)
 async def fairuse_error(request: Request, exc: FairUseError):
     return JSONResponse(status_code=429, content={"detail": str(exc)}, headers={"Cache-Control": "no-store"})
+
+from subnexa_users import router as users_router
+app.include_router(users_router)
+from subnexa_users import UsersNoStore
+app.add_middleware(UsersNoStore)

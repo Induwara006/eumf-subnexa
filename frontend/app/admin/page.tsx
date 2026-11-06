@@ -3,16 +3,18 @@
 // SUBNEXA_ADMIN_DASHBOARD_V2 (rename)
 // SUBNEXA_ADMIN_DASHBOARD_V3 (poster picker: TMDB, drag & drop, paste, link)
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Eye, ImagePlus, Loader2, Lock, Pencil, Search, Trash2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { adminProofHeaders, clearAdminSession, ensureAdminSession } from "@/lib/admin-proof";
+import AdminUsers from "@/components/AdminUsers";
+import { acceptAdminReturn, currentAdminProof, ensureAdminProof } from "@/lib/admin-proof";
 import ThemeToggle from "@/components/theme-toggle";
 
-type Tab = "approvals" | "requests" | "library";
+type Tab = "approvals" | "requests" | "library" | "users";
 type Submission = { id: string; title: string; year: string; format: string; status: string; created_at: string; admin_note: string | null };
 type Ticket = { id: string; title: string; details: string; status: string; admin_note: string | null; created_at: string; kind: string | null };
 type LibItem = { id: string | number; title: string; year: string; format: string; downloads: number; poster_url: string | null };
@@ -20,6 +22,7 @@ type Notice = { ok: boolean; text: string };
 type PosterMatch = { id: number; type: string; title: string; year: string; poster_url: string };
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "users", label: "Users" },
   { id: "approvals", label: "Subtitle approvals" },
   { id: "requests", label: "Subtitle requests" },
   { id: "library", label: "Library management" },
@@ -42,9 +45,59 @@ export default function AdminDashboard() {
   const [unlocked, setUnlocked] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState("");
+  const [googleVerified, setGoogleVerified] = useState(false);
+  useEffect(() => {
+    const message = acceptAdminReturn();
+    const verified = Boolean(currentAdminProof());
+    setGoogleVerified(verified);
+    if (message && !verified) setUnlockError(message);
+  }, []);
+  useEffect(() => {
+    if (!googleVerified || unlocked) return;
+    const timer = window.setInterval(() => {
+      if (!currentAdminProof()) {
+        setGoogleVerified(false);
+        setKey("");
+        setUnlockError("Google verification expired. Please verify Google again.");
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [googleVerified, unlocked]);
+
+  async function verifyGoogle() {
+    if (unlocking) return;
+    setUnlocking(true);
+    setUnlockError("");
+    setKey("");
+    try {
+      await ensureAdminProof();
+      setGoogleVerified(Boolean(currentAdminProof()));
+    } catch (error) {
+      setUnlockError(error instanceof Error ? error.message : "Google verification failed.");
+    } finally { setUnlocking(false); }
+  }
   const [tab, setTab] = useState<Tab>("approvals");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  // subnexa-presence-cap-v1: admin-only, 15-second polling.
+  const [liveUsers, setLiveUsers] = useState<{active:number;limit:number;window_seconds:number;busy:boolean}|null>(null);
+  useEffect(() => {
+    if (!unlocked) { setLiveUsers(null); return; }
+    let stopped = false;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/library/admin/live-users", {
+          headers: adminProofHeaders(key), cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Live count unavailable");
+        const value = await response.json();
+        if (!stopped && Number.isInteger(value.active) && Number.isInteger(value.limit)) setLiveUsers(value);
+      } catch { if (!stopped) setLiveUsers(null); }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 15000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [unlocked, key]);
 
   const [subs, setSubs] = useState<Submission[]>([]);
   const [showReviewed, setShowReviewed] = useState(false);
@@ -67,6 +120,7 @@ export default function AdminDashboard() {
 
   function lock(message = "") {
     clearAdminSession();
+    setGoogleVerified(false);
     void fetch("/api/library/admin/logout", { method: "POST", cache: "no-store" }).catch(() => {});
     setUnlocked(false);
     setKey("");
@@ -123,6 +177,7 @@ export default function AdminDashboard() {
 
   function loadTab(next: Tab) {
     if (next === "approvals") return loadApprovals();
+    if (next === "users") return;
     if (next === "requests") return loadTickets();
     return loadLibrary();
   }
@@ -134,14 +189,22 @@ export default function AdminDashboard() {
 
   async function unlock() {
     if (!key || unlocking) return;
+    if (!currentAdminProof()) {
+      setGoogleVerified(false);
+      setKey("");
+      setUnlockError("Google verification expired. Please verify Google again.");
+      return;
+    }
     setUnlocking(true); setUnlockError("");
     try {
-      // Opens the Google admin popup (must start from this click), checks the password and
+      // Verifies Google in this tab, checks the password and
       // creates the short-lived server-side admin session.
-      await ensureAdminSession(key);
+      await ensureAdminSession(key, true);
       setUnlocked(true);
       await loadApprovals();
     } catch (error) {
+      setGoogleVerified(Boolean(currentAdminProof()));
+      setKey("");
       setUnlockError(error instanceof Error ? error.message : "Admin verification failed.");
     } finally { setUnlocking(false); }
   }
@@ -308,19 +371,35 @@ export default function AdminDashboard() {
 
         {!unlocked ? (
           <div className="max-w-md space-y-3 rounded-xl border border-border bg-ink/[0.03] p-5">
-            <p className="text-sm text-body">Admins only. Unlocking opens a Google sign-in popup to verify your admin account, then checks the admin password.</p>
-            <div className="flex gap-2">
+            <p className="text-sm text-body">Admins only. Verify your Google account first, then enter your admin password once.</p>
+            {!googleVerified ? (
+              <Button onClick={() => void verifyGoogle()} disabled={unlocking} className="gap-2">
+                {unlocking && <Loader2 className="size-4 animate-spin" />}
+                {unlocking ? "Verifying…" : "Verify Google"}
+              </Button>
+            ) : (
+              <>
+                <p role="status" className="text-xs text-green-700 dark:text-green-300">Google verified. Enter your admin password to unlock.</p>
+                <div className="flex gap-2">
               <Input aria-label="Admin password" type="password" autoComplete="off" placeholder="Admin password" value={key}
                 onChange={e => { setKey(e.target.value); setUnlockError(""); }}
                 onKeyDown={e => { if (e.key === "Enter") void unlock(); }} />
               <Button onClick={() => void unlock()} disabled={unlocking || !key} className="shrink-0 gap-2">
                 {unlocking ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}Unlock
               </Button>
-            </div>
+                </div>
+              </>
+            )}
             {unlockError && <p role="alert" className="text-xs text-destructive">{unlockError}</p>}
           </div>
         ) : (
           <>
+            <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-ink/[0.03] p-4" aria-live="polite">
+              <div><h2 className="text-sm font-semibold">Live users</h2><p className="text-xs text-body">Unique signed-in users active within 3 minutes · auto-refreshes every 15 seconds</p></div>
+              <div className="text-right"><p className="text-2xl font-semibold tabular-nums">{liveUsers ? `${liveUsers.active} / ${liveUsers.limit}` : "Unavailable"}</p>
+                {liveUsers && <p className={`text-xs ${liveUsers.busy ? "text-destructive" : "text-body"}`}>{liveUsers.busy ? "Full · new logins paused" : "Accepting new logins"}</p>}
+              </div>
+            </section>
             <div className="flex flex-wrap gap-2" role="tablist">
               {TABS.map(t => (
                 <button key={t.id} role="tab" aria-selected={tab === t.id} disabled={busy} onClick={() => switchTab(t.id)}
@@ -332,6 +411,7 @@ export default function AdminDashboard() {
             </div>
             {notice && <p role="status" className={`text-sm ${notice.ok ? "text-success" : "text-destructive"}`}>{notice.text}</p>}
 
+            {tab === "users" && <AdminUsers adminKey={key} onLock={() => lock("Admin session ended. Unlock again.")} />}
             {tab === "approvals" && (
               <section className="space-y-3">
                 <label className="flex items-center gap-2 text-xs text-body">

@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
 LIMITS = {
+    '/presence/ping': 6,
     '/translate-srt-stream': 20, '/translate-srt': 20, '/translate': 20,
     '/upload': 30, '/translation/control': 60,
     '/subnexa-auth/login': 20, '/subnexa-auth/admin/handoff': 20,
@@ -42,7 +43,7 @@ class SharedRateGuard:
         if scope.get('type')!='http' or scope.get('method','GET').upper()=='OPTIONS' or not shared_enabled():
             return await self.app(scope,receive,send)
         path=scope.get('path','')
-        if path not in LIMITS: return await self.app(scope,receive,send)
+        if path == '/presence/ping' or path not in LIMITS: return await self.app(scope,receive,send)
         # Never use untrusted forwarded headers. Use ASGI client's address only.
         client=scope.get('client')
         ip=str(client[0]) if client else 'unknown'

@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
+import UserPresence from "@/components/UserPresence";
 import BackendWarmup from "@/components/BackendWarmup";
 
 const geist = localFont({
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <TooltipProvider>{children}</TooltipProvider>
         <BackendWarmup />
+        <UserPresence />
         <Toaster theme="system" position="bottom-right" />
       </body>
     </html>

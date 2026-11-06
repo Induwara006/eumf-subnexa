@@ -302,6 +302,24 @@ async function handle(request: Request, context: Context) {
       }));
       return json({ results });
     }
+    if (request.method === "GET" && ["admin/users", "admin/users/online", "admin/users/stats"].includes(route)) {
+      await admin(request);
+      const backend = (process.env.SUBNEXA_BACKEND_URL || "https://subnexa-backend-x7qa.onrender.com").replace(/\/$/, "");
+      const target = new URL(backend);
+      if (target.protocol !== "https:" && !(process.env.NODE_ENV !== "production" && ["localhost", "127.0.0.1"].includes(target.hostname))) throw new HttpError(503, "Invalid backend configuration.");
+      const query = new URL(request.url).search;
+      const response = await fetch(`${backend}/${route}${query}`, {
+        headers: {cookie: request.headers.get("cookie") || "", "X-Library-Admin-Key": request.headers.get("x-library-admin-key") || ""},
+        cache: "no-store", signal: AbortSignal.timeout(20000), redirect: "error"
+      });
+      const result = await response.json().catch(() => ({detail:"User directory unavailable."}));
+      return json(result, response.status);
+    }
+    if (route === "admin/live-users" && request.method === "GET") {
+      await admin(request); // existing Google-admin session + password checks
+      const response = await rpc("subnexa_presence_stats_v1", {});
+      return json(await response.json());
+    }
     if (route === "admin/requests" && request.method === "GET") {
       await admin(request);
       // select=* works whatever columns the table has; only the fields below are returned.

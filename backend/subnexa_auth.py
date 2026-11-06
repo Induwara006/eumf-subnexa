@@ -58,7 +58,7 @@ def _popup_oauth_error(target_origin: str, safe_code: str):
     allowed = {FRONTEND, "https://subnexa.lk", "https://www.subnexa.lk", "https://eumf-subnexa.vercel.app"}
     allowed.update(s.strip().rstrip("/") for s in os.getenv("SUBNEXA_ADMIN_ALLOWED_ORIGINS", "").split(",") if s.strip())
     if target_origin not in allowed: target_origin = FRONTEND
-    return RedirectResponse(target_origin + "/admin/verify#" + urlencode({"error": safe_code}),
+    return RedirectResponse(target_origin + "/admin#" + urlencode({"error": safe_code}),
                             status_code=302, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
 _current_key = contextvars.ContextVar("subnexa_current_user_gemini_key", default=None)
@@ -346,9 +346,12 @@ def _provision_key(token, project_id, sub):
 
 
 @router.get("/login")
-def login():
+def login(return_to: str = "/"):
+    from subnexa_users import clean
+    if not return_to.startswith("/") or return_to.startswith("//") or "\\" in return_to or clean(return_to,1500) != return_to:
+        return_to = "/"
     response = RedirectResponse("/", status_code=302)
-    url = _oauth_url("login", {}, response)
+    url = _oauth_url("login", {"return_to": return_to}, response)
     response.headers["location"] = url
     return response
 
@@ -424,6 +427,26 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
         stage = "admin_proof" if obj.get("admin_handoff_state") else "session_issue"
         if obj["mode"] == "login":
             user = {"sub": sub, "name": profile.get("name", ""), "email": profile.get("email", ""), "email_verified": True}
+            # subnexa-presence-cap-v1: atomic admission before issuing a login cookie.
+            from subnexa_presence import admit as presence_admit, PresenceUnavailable
+            try:
+                admission_allowed = presence_admit(user)
+            except PresenceUnavailable:
+                _auth_logger.warning("Presence admission unavailable")
+                response.headers["location"] = FRONTEND + "/?subnexa_error=presence_unavailable"
+                return response
+            if not admission_allowed:
+                response.headers["location"] = FRONTEND + "/?subnexa_error=system_busy"
+                return response
+            from subnexa_users import register
+            try:
+                register(user, profile)
+            except HTTPException as exc:
+                response.headers["location"] = FRONTEND + "/?subnexa_error=" + ("account_blocked" if exc.status_code == 403 else "users_unavailable")
+                return response
+            target = obj.get("return_to", "/")
+            if isinstance(target, str) and target.startswith("/") and not target.startswith("//") and "\\" not in target and not any(ord(c)<32 for c in target):
+                response.headers["location"] = FRONTEND + target
             threading.Thread(target=_send_login_confirmation, args=(user,), daemon=True).start()
             handoff_state = obj.get("admin_handoff_state")
             if handoff_state is not None:
@@ -532,6 +555,14 @@ def connect(request: Request, form: ConnectRequest):
 def logout(request: Request):
     if request.headers.get("origin") != FRONTEND:
         raise HTTPException(status_code=403, detail="Untrusted origin")
+    # Release the live-user slot on logout; never prevent logout on DB failure.
+    from subnexa_presence import release as presence_release, PresenceUnavailable
+    signed_user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
+    if signed_user:
+        try:
+            presence_release(signed_user)
+        except PresenceUnavailable:
+            _auth_logger.warning("Presence release unavailable")
     response = JSONResponse({"ok": True})
     response.delete_cookie(COOKIE_NAME, path="/")
     return response
@@ -661,7 +692,7 @@ def _admin_popup_proof(user, state, target_origin):
     token = body + "." + base64.urlsafe_b64encode(signature).decode().rstrip("=")
     # Same-origin frontend page forwards the token to admin page over BroadcastChannel.
     # Fragment is excluded from HTTP requests and access logs.
-    return RedirectResponse(target_origin + "/admin/verify#" + urlencode({"proof": token, "state": state}),
+    return RedirectResponse(target_origin + "/admin#" + urlencode({"proof": token, "state": state}),
                             status_code=302, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
 
@@ -753,6 +784,14 @@ def connect(request: Request, form: ConnectRequest):
 def logout(request: Request):
     if request.headers.get("origin") != FRONTEND:
         raise HTTPException(status_code=403, detail="Untrusted origin")
+    # Release the live-user slot on logout; never prevent logout on DB failure.
+    from subnexa_presence import release as presence_release, PresenceUnavailable
+    signed_user = _user_from_cookie_value(request.cookies.get(COOKIE_NAME))
+    if signed_user:
+        try:
+            presence_release(signed_user)
+        except PresenceUnavailable:
+            _auth_logger.warning("Presence release unavailable")
     response = JSONResponse({"ok": True})
     response.delete_cookie(COOKIE_NAME, path="/")
     return response
@@ -856,3 +895,10 @@ async def _deny(send, status, body, origin=None):
     await send({"type": "http.response.start", "status": status,
                 "headers": response_headers})
     await send({"type": "http.response.body", "body": body})
+
+
+# subnexa-presence-cap-v1: browser heartbeat (authenticated, no public counts).
+@router.post("/presence/ping")
+def presence_ping(request: Request):
+    from subnexa_users import ping
+    return ping(request)
