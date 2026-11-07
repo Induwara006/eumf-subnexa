@@ -108,13 +108,17 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
   const posterInput = useRef<HTMLInputElement>(null);
   const subInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (!posterFile) { setPosterPreview(""); return; }
+    if (!posterFile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPosterPreview(""); return;
+    }
     const url = URL.createObjectURL(posterFile);
     setPosterPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [posterFile]);
   useEffect(() => () => posterRequest.current?.abort(), []);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPosterMatches([]); setSearchMessage(""); setSearchBusy(false);
     if (!unlocked || !ownerOpen || title.trim().length < 2 || title === selectedTitle) return;
     const controller = new AbortController();
@@ -413,12 +417,12 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
     <div className="space-y-4">
       <CommunityForm kind="request" />
       {!seasonKey && <CommunitySubtitleUpload />}
-      {seasonKey && seasonInfo && <div className="rounded-xl border border-border bg-ink/[0.03] p-5">
+      {seasonKey && seasonInfo && <div className="rounded-[5px] border border-border bg-[var(--next-gray-200)] p-5">
         <p className="text-xs uppercase tracking-widest text-primary">TV Series {seasonInfo.year && `· ${seasonInfo.year}`}</p>
         <h1 className="mt-2 text-2xl font-bold">{seasonInfo.series_title} · Season {seasonInfo.season_number}</h1>
         <p className="mt-2 text-sm text-ink/60">{seasonInfo.episode_count} episodes · {total} subtitle files. Choose an episode below.</p>
       </div>}
-      {seasonKey && <div className="rounded-lg border border-border bg-ink/[0.03] p-3 text-sm">
+      {seasonKey && <div className="rounded-[5px] border border-border bg-[var(--next-gray-200)] p-3 text-sm">
         {ownerOpen && unlocked ? <div className="flex flex-wrap items-center gap-3">
           <span className="text-ink/80">Season poster: apply one image to every episode, or edit individual posters below.</span>
           <Button type="button" size="sm" disabled={seasonPosterBusy} onClick={() => openPosterPicker(null)}>
@@ -462,10 +466,10 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {shownItems.map(item => (
-            <div key={item.id} className="group flex flex-col overflow-hidden rounded-xl border border-border bg-ink/[0.03]">
-              <div className="relative aspect-[2/3] overflow-hidden bg-sand">
+            <div key={item.id} className="group flex flex-col overflow-hidden rounded-[5px] border border-border bg-[var(--next-gray-200)]">
+              <div className="relative aspect-[2/3] overflow-hidden bg-[var(--next-gray-300)]">
                 <Poster item={item} api={api} />
-                <Badge className="absolute left-2 top-2 h-5 bg-ink/80 px-2 text-[10px] font-semibold uppercase text-white">{item.kind === "season" ? `Season ${item.season_number}` : seasonKey ? `Episode ${item.episode_number}` : item.format}</Badge>
+                <Badge className="absolute left-2 top-2 h-5 bg-black/80 px-2 text-[10px] font-semibold uppercase text-white">{item.kind === "season" ? `Season ${item.season_number}` : seasonKey ? `Episode ${item.episode_number}` : item.format}</Badge>
               </div>
               <div className="flex flex-1 flex-col gap-2 p-3">
                 <div className="min-w-0">
@@ -504,8 +508,8 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         </div>
       )}
 
-      {(editingPoster || seasonPosterEditing) && ownerOpen && unlocked && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 p-4" role="presentation">
-        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-input bg-surface-primary p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Edit library poster">
+      {(editingPoster || seasonPosterEditing) && ownerOpen && unlocked && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="presentation">
+        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[5px] border border-input bg-surface-primary p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Edit library poster">
           <h2 className="mb-2 text-base font-semibold text-ink">{seasonPosterEditing ? `Set season poster: ${seasonInfo?.series_title || seasonKey}` : `${editingPoster?.poster_url ? "Change" : "Add"} poster: ${editingPoster?.title}`}</h2>
           <p className="mb-3 text-xs text-ink/65">Search TMDB, import an image URL, or upload a JPG/PNG/WebP (max 2 MB).</p>
           {seasonPosterEditing && <p className="mb-3 text-xs text-warning">This replaces posters on every subtitle entry in this season, after confirmation.</p>}
@@ -551,7 +555,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         </button>
 
         {ownerOpen && !unlocked ? (
-          <div className="mt-3 max-w-sm space-y-2 rounded-lg border border-border bg-ink/[0.03] p-3">
+          <div className="mt-3 max-w-sm space-y-2 rounded-[5px] border border-border bg-[var(--next-gray-200)] p-3">
             <Label htmlFor="lib-owner-key" className="text-xs">Enter the password to continue</Label>
             <div className="flex gap-2">
               <Input
@@ -573,7 +577,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         ) : null}
 
         {ownerOpen && unlocked ? (
-          <div className="mt-3 grid gap-3 rounded-lg border border-border bg-ink/[0.03] p-3 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 rounded-[5px] border border-border bg-[var(--next-gray-200)] p-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="lib-title" className="text-xs">Title</Label>
               <Input id="lib-title" value={title} disabled={uploading || posterBusy} onChange={e => { setTitle(e.target.value); setSelectedTitle(""); }} maxLength={120} placeholder="Movie or series name" />
@@ -617,7 +621,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
                   if (file) choosePoster(file); else { const url = e.dataTransfer.getData("text/uri-list").split("\n").find(x => x && !x.startsWith("#")) || e.dataTransfer.getData("text/plain"); if (url) void importPoster(url); } }}
                 onPaste={e => { if (uploading) return; const file = Array.from(e.clipboardData.items).find(x => x.type.startsWith("image/"))?.getAsFile();
                   if (file) { e.preventDefault(); choosePoster(file); } }}
-                className="rounded-lg border border-dashed border-input p-4 focus:border-primary focus:outline-none">
+                className="rounded-[5px] border border-dashed border-input p-4 focus:border-primary focus:outline-none">
                 <Label htmlFor="lib-poster" className="text-xs">Poster (JPG, PNG or WebP, max 2 MB)</Label>
                 <p className="my-2 text-xs text-ink/55">Drop an image here, click this area and press Ctrl+V, or choose a file.</p>
                 <Input ref={posterInput} disabled={uploading} id="lib-poster" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => choosePoster(e.target.files?.[0] ?? null)} />

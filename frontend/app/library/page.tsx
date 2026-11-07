@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { LibraryBrowser } from "../../components/SubtitleLibrary";
 import Header from "@/components/Header";
+import SiteFooter from "@/components/SiteFooter";
+import Reveal from "@/components/Reveal";
+import SlideTextButton from "@/components/ui/slide-text-button";
 
 export const metadata: Metadata = {
   title: "Subtitle library — SubNexa",
@@ -14,27 +17,35 @@ const API = (
 
 export default function LibraryPage() {
   return (
-    <div className="min-h-screen bg-background text-ink">
-      <Header />
+    <div className="dark framer-landing relative isolate min-h-screen overflow-hidden bg-background text-ink">
+      <Header overlay showThemeToggle={false} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[900px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(232,232,238,0.12),transparent_70%)]" />
 
-      <main className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[360px]">
-          <div className="absolute inset-0 inc-grid-lines opacity-50" />
-          <div className="absolute -right-20 -top-24 size-[460px] rounded-full bg-[radial-gradient(circle_at_center,#fddfd9_0%,transparent_70%)] dark:bg-[radial-gradient(circle_at_center,rgba(255,106,69,0.14)_0%,transparent_70%)] blur-2xl" />
-        </div>
-        <div className="mx-auto w-full max-w-[1240px] px-5 pb-20 pt-14 sm:px-8 sm:pt-20">
-          <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-alarmalade">The library</p>
-          <h1 className="mt-4 max-w-3xl text-[clamp(2.5rem,5vw,4.2rem)] leading-[0.98]">
-            Sinhala subtitles,<br /><span className="text-body">ready when you are.</span>
+      <main className="relative mx-auto w-full max-w-[1200px] px-5 pb-24 pt-36 sm:px-8 sm:pt-44">
+        <Reveal className="max-w-3xl">
+          <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-content-tertiary">The library</p>
+          <h1 className="mt-4 text-[clamp(2.6rem,6vw,4.5rem)] font-bold leading-[0.96] tracking-[-0.045em]">
+            Sinhala subtitles,
+            <br />
+            <span className="text-body">ready when you are.</span>
           </h1>
-          <p className="mb-10 mt-6 max-w-xl text-[17px] leading-relaxed text-body">
+          <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-body">
             Ready-made Sinhala subtitles for films and series. Search by title and download instantly. No sign-in needed.
           </p>
-          <div className="rounded-3xl border border-border bg-cream/60 p-4 sm:p-6">
+          <div className="mt-8 flex flex-wrap gap-3">
+            <SlideTextButton text="Browse all titles" hoverText="Search now" href="#library" />
+            <SlideTextButton text="Read the guide" hoverText="How it works" href="/guide" variant="ghost" />
+          </div>
+        </Reveal>
+
+        <Reveal className="mt-12" delay={0.1}>
+          <div id="library" className="rounded-[5px] border border-border bg-[var(--next-gray-200)] p-4 sm:p-6">
             <LibraryBrowser api={API} autoFocus />
           </div>
-        </div>
+        </Reveal>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

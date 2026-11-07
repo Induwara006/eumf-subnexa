@@ -39,7 +39,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { bilingualSrt } from "./bilingual";
-import QuickGuide from "../components/QuickGuide";
 import CommunityForm from "../components/CommunityForm";
 import FairUse from "../components/FairUse";
 
@@ -220,7 +219,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const [sceneIndex, setSceneIndex] = useState(0);
   const [backgroundDim, setBackgroundDim] = useState(78);
   const [readyCardVisible, setReadyCardVisible] = useState(true);
-  const [help, setHelp] = useState(false);
   const [glossarySearch, setGlossarySearch] = useState("");
   const [file, setFile] = useState<File | null>(null);
   // Library check: is a Sinhala subtitle for this film already in the library?
@@ -1229,7 +1227,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 />
                 <LibrarySearchResults query={cueSearch} api={API} onBrowse={() => setLibrary(true)} />
               </div>
-              <Button variant="ghost" size="icon" className="text-body hover:text-ink" aria-label="Guide" onClick={() => setHelp(true)}>
+              <Button variant="ghost" size="icon" className="text-body hover:text-ink" aria-label="Guide" onClick={() => window.open("/guide", "_blank", "noopener,noreferrer")}>
                 <CircleHelp />
               </Button>
               <ThemeToggle />
@@ -1382,8 +1380,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
             </div>
           </div>
         </div>
-
-        <QuickGuide open={help} onOpenChange={setHelp} />
 
         <nav className="sticky top-16 z-30 mt-6 flex overflow-hidden rounded-[6px] border border-border bg-card" aria-label="Progress">
           <StepLink href="#sn-setup" index={1} label="Upload" state={file ? "done" : "current"} />
@@ -2142,7 +2138,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               <a href="#sn-overview" className="transition-colors hover:text-ink">Overview</a>
               <a href="#sn-setup" className="transition-colors hover:text-ink">Upload</a>
               <a href="#sn-glossary" className="transition-colors hover:text-ink">Glossary</a>
-              <button type="button" onClick={() => setHelp(true)} className="transition-colors hover:text-ink">Guide</button>
+              <a href="/guide" target="_blank" rel="noreferrer" className="transition-colors hover:text-ink">Guide</a>
               <a href="#top" className="transition-colors hover:text-ink">Back to top</a>
             </div>
           </div>

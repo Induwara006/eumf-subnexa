@@ -1,3 +1,31 @@
+@import url("https://fonts.googleapis.com/css2?family=Switzer:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400..700&display=swap");
+/* --- Rifton Norm --- */
+@import url(https://db.onlinewebfonts.com/c/31255a1d1395bb91aec77d16e2e26fdc?family=Rifton+Norm);
+/* --- ROUND 8 (atipo) --- */
+@import url(https://db.onlinewebfonts.com/c/760c3a7c48d97f8fbc0019404a5923c3?family=ROUND+8+THREE);
+
+/* Fallback @font-face (optional, for offline or blocked requests) */
+@font-face {
+  font-family: "ROUND 8 THREE";
+  src: url("https://db.onlinewebfonts.com/t/760c3a7c48d97f8fbc0019404a5923c3.eot");
+  src: url("https://db.onlinewebfonts.com/t/760c3a7c48d97f8fbc0019404a5923c3.eot?#iefix") format("embedded-opentype"),
+       url("https://db.onlinewebfonts.com/t/760c3a7c48d97f8fbc0019404a5923c3.woff2") format("woff2"),
+       url("https://db.onlinewebfonts.com/t/760c3a7c48d97f8fbc0019404a5923c3.woff") format("woff"),
+       url("https://db.onlinewebfonts.com/t/760c3a7c48d97f8fbc0019404a5923c3.ttf") format("truetype"),
+       url("https://db.onlinewebfonts.com/t/760c3a7c48d97f8fbc0019404a5923c3.svg#ROUND 8 THREE") format("svg");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rifton Norm";
+  src: url("https://db.onlinewebfonts.com/t/31255a1d1395bb91aec77d16e2e26fdc.eot");
+  src: url("https://db.onlinewebfonts.com/t/31255a1d1395bb91aec77d16e2e26fdc.eot?#iefix") format("embedded-opentype"),
+       url("https://db.onlinewebfonts.com/t/31255a1d1395bb91aec77d16e2e26fdc.woff2") format("woff2"),
+       url("https://db.onlinewebfonts.com/t/31255a1d1395bb91aec77d16e2e26fdc.woff") format("woff"),
+       url("https://db.onlinewebfonts.com/t/31255a1d1395bb91aec77d16e2e26fdc.ttf") format("truetype"),
+       url("https://db.onlinewebfonts.com/t/31255a1d1395bb91aec77d16e2e26fdc.svg#Rifton Norm") format("svg");
+}
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -98,9 +126,9 @@
   --color-content-secondary: var(--content-secondary);
   --color-content-tertiary: var(--content-tertiary);
   --font-sans: var(--font-geist-sans);
-  --font-serif: var(--font-geist-sans);
-  --font-heading: var(--font-geist-sans);
-  --font-display: var(--font-geist-sans);
+  --font-serif: var(--font-inter);
+  --font-heading: var(--font-inter);
+  --font-display: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --font-geist: var(--font-geist-sans);
   --font-sinhala: var(--font-sinhala);
@@ -161,7 +189,7 @@
   --content-tertiary: #787470;
 
   --font-stk-sans: var(--font-geist-sans), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --font-stk-serif: var(--font-geist-sans), Georgia, ui-serif, serif;
+  --font-stk-serif: var(--font-inter), Georgia, ui-serif, serif;
   --font-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --background: #ffffff;
@@ -250,6 +278,144 @@
   --sidebar-ring: #ff6a45;
 }
 
+.framer-landing {
+  /* usedropshot.com design tokens — dark theme */
+  --color-background-100: #0a0a0c;
+  --color-background-200: #0a0a0c;
+  --color-font: #e0e0e4;
+  --color-backdrop: rgb(0 0 0 / 0.8);
+  --color-border-shadow: rgb(255 255 255 / 0.145);
+  --color-title-color: #e0e0e4;
+  --color-stack-notes: #8e8e96;
+
+  --next-gray-100: #131316f7;
+  --next-gray-200: #18181c;
+  --next-gray-300: #1a1a1e;
+  --next-gray-400: #222228;
+  --next-gray-500: #1f1f24;
+  --next-gray-600: #7a7a82;
+  --next-gray-700: #8f8f8f;
+  --next-gray-800: #7d7d7d;
+  --next-gray-900: #9a9aa2;
+  --next-gray-1000: #e0e0e4;
+  --next-gray-alpha-100: rgb(255 255 255 / 0.055);
+  --next-gray-alpha-200: rgb(255 255 255 / 0.08);
+  --next-gray-alpha-300: rgb(255 255 255 / 0.13);
+  --next-gray-alpha-400: rgb(255 255 255 / 0.145);
+  --next-gray-alpha-500: rgb(255 255 255 / 0.239);
+  --next-gray-alpha-600: rgb(255 255 255 / 0.506);
+  --next-gray-alpha-700: rgb(255 255 255 / 0.54);
+  --next-gray-alpha-800: rgb(255 255 255 / 0.47);
+  --next-gray-alpha-900: rgb(255 255 255 / 0.61);
+  --next-gray-alpha-1000: rgb(255 255 255 / 0.923);
+
+  --next-blue-100: #131316f7;
+  --next-blue-200: #18181c;
+  --next-blue-300: #1a1a1e;
+  --next-blue-400: #222228;
+  --next-blue-500: #1f1f24;
+  --next-blue-600: #e0e0e4;
+  --next-blue-700: #e0e0e4;
+  --next-blue-800: #e0e0e4;
+  --next-blue-900: #9a9aa2;
+  --next-blue-1000: #e0e0e4;
+
+  --next-purple-600: #9a9aa2;
+  --next-purple-900: #c79bfb;
+  --next-red-600: #e5484d;
+  --next-amber-700: #e0e0e4;
+  --next-green-700: #c8c8cc;
+
+  --timing-swift: cubic-bezier(0.23, 0.88, 0.26, 0.92);
+  --timing-overlay: cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  --focus-color: var(--next-blue-600);
+  --focus-ring: 2px solid var(--focus-color);
+
+  /* Semantic mapping onto the app tokens */
+  --ink: var(--next-gray-1000);
+  --body: var(--next-gray-900);
+  --cream: var(--next-gray-100);
+  --sand: var(--next-gray-100);
+  --sand-strong: var(--next-gray-300);
+  --surface-primary: var(--color-background-100);
+  --surface-secondary: var(--next-gray-100);
+  --surface-tertiary: var(--next-gray-200);
+  --surface-quaternary: var(--next-gray-300);
+  --content-primary: var(--next-gray-1000);
+  --content-secondary: var(--next-gray-900);
+  --content-tertiary: var(--next-gray-600);
+  --background: var(--color-background-100);
+  --foreground: var(--next-gray-1000);
+  --card: var(--next-gray-100);
+  --card-foreground: var(--next-gray-1000);
+  --popover: var(--next-gray-100);
+  --popover-foreground: var(--next-gray-1000);
+  --primary: var(--next-blue-600);
+  --primary-foreground: #0a0a0c;
+  --secondary: var(--next-gray-200);
+  --secondary-foreground: var(--next-gray-1000);
+  --muted: var(--next-gray-200);
+  --muted-foreground: var(--next-gray-900);
+  --accent: var(--next-gray-300);
+  --accent-foreground: var(--next-gray-1000);
+  --border: var(--next-gray-500);
+  --input: var(--next-gray-500);
+  --ring: var(--focus-color);
+  --success: var(--next-green-700);
+  --warning: var(--next-amber-700);
+  --alarmalade: var(--next-blue-600);
+  --burgundy: var(--next-purple-600);
+
+  color: var(--foreground);
+  background-color: var(--background);
+  font-family: "Switzer", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.framer-landing h1 {
+  font-family: "ROUND 8 THREE", "Rifton Norm", "Mona Sans", "Switzer", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+.framer-landing h2,
+.framer-landing h3,
+.framer-landing h4 {
+  font-family: "Rifton Norm", "Mona Sans", "Switzer", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.framer-landing :is(code, kbd, pre, samp, .font-mono) {
+  font-family: "Roboto Mono", var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Radius — usedropshot design scale (scoped) */
+.framer-landing .rounded-sm {
+  border-radius: 6px;
+}
+.framer-landing .rounded-md {
+  border-radius: 8px;
+}
+.framer-landing .rounded-lg {
+  border-radius: 10px;
+}
+.framer-landing .rounded-xl {
+  border-radius: 14px;
+}
+.framer-landing .rounded-2xl {
+  border-radius: 16px;
+}
+.framer-landing .rounded-3xl {
+  border-radius: 24px;
+}
+.framer-landing .rounded-4xl {
+  border-radius: 32px;
+}
+
 .dark .inc-card:hover {
   box-shadow: 0 24px 50px -28px rgb(0 0 0 / 0.7);
 }
@@ -287,8 +453,8 @@
     font-optical-sizing: auto;
   }
   h1, h2, h3, h4 {
-    font-family: var(--font-geist-sans);
-    font-weight: 500;
+    font-family: var(--font-inter);
+    font-weight: 700;
     font-style: normal;
     letter-spacing: -0.035em;
     line-height: 1.04;
