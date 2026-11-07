@@ -42,7 +42,7 @@ export default function StudioPulse({
             contentStyle={{
               background: "var(--popover)",
               border: "1px solid var(--border)",
-              borderRadius: 10,
+              borderRadius: 5,
               fontSize: 12,
               color: "var(--foreground)",
             }}

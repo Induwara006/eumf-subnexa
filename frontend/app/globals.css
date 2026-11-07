@@ -393,6 +393,21 @@
   font-family: "Roboto Mono", var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.framer-landing [data-slot="card"] {
+  border-radius: 5px;
+  background-color: var(--next-gray-200);
+}
+
+.framer-landing [data-slot="card-title"] {
+  font-family: "Rifton Norm", "Mona Sans", "Switzer", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.framer-landing [data-slot="button"][data-variant="default"]:hover {
+  background-color: color-mix(in oklab, var(--primary) 90%, transparent);
+}
+
 /* Radius — usedropshot design scale (scoped) */
 .framer-landing .rounded-sm {
   border-radius: 6px;
