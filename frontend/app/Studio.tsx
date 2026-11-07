@@ -43,7 +43,7 @@ import CommunityForm from "../components/CommunityForm";
 import FairUse from "../components/FairUse";
 
 import SubNexaAccountDock from "../components/SubNexaAccountDock";
-import ThemeToggle from "../components/theme-toggle";
+import SiteFooter from "../components/SiteFooter";
 import StudioPulse, { type PulsePoint } from "../components/StudioPulse";
 import SubtitleLibrary from "../components/SubtitleLibrary";
 import LibrarySearchResults from "../components/LibrarySearchResults";
@@ -180,14 +180,14 @@ function StepLink({ href, index, label, state }: {
       href={href}
       className={cn(
         "group relative flex flex-1 items-center justify-center gap-2 px-2 py-4 text-[11px] font-semibold tracking-[0.01em] transition-colors sm:text-xs",
-        state === "current" && "text-white",
+        state === "current" && "text-ink",
         state === "done" && "text-body hover:text-ink",
         state === "todo" && "text-content-tertiary hover:text-ink/70",
       )}
     >
       <span className={cn(
-        "grid size-6 shrink-0 place-items-center rounded-[3px] border text-[10px] font-bold",
-        state === "current" && "border-primary bg-primary text-white",
+        "grid size-6 shrink-0 place-items-center rounded-[5px] border text-[10px] font-bold",
+        state === "current" && "border-primary bg-primary text-primary-foreground",
         state === "done" && "border-success/40 bg-success/15 text-success",
         state === "todo" && "border-input text-content-tertiary",
       )}>
@@ -1100,7 +1100,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   function renderCues() {
     if (!cues.length || !visibleIndices.length) {
       return (
-        <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-[4px] border border-dashed border-border/60 bg-ink/[0.03] p-6 text-center">
+        <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-[5px] border border-dashed border-border/60 bg-ink/[0.03] p-6 text-center">
           <span className="grid size-12 place-items-center rounded-full border border-border bg-card text-muted-foreground">
             <FileText className="size-5" />
           </span>
@@ -1123,7 +1123,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           const canEdit = tab !== "source" && !!readyDownload && !isCredit && !translating;
           const isEditing = editingCue === i;
           return (
-            <div key={`${tab}-${i}`} data-cue-index={i} className={cn("py-3 first:pt-1 last:pb-1", isEditing && "rounded-[4px] bg-primary/5 px-3")}>
+            <div key={`${tab}-${i}`} data-cue-index={i} className={cn("py-3 first:pt-1 last:pb-1", isEditing && "rounded-[5px] bg-primary/5 px-3")}>
               <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] tabular-nums text-muted-foreground">
                 <span className="text-foreground/70">#{cue.number}</span>
                 <time>{cue.time}</time>
@@ -1134,13 +1134,13 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               </div>
               {tab === "compare" ? (
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-[4px] border border-border/60 bg-ink/[0.04] p-2.5">
+                  <div className="rounded-[5px] border border-border/60 bg-ink/[0.04] p-2.5">
                     <span className="text-[9px] font-medium tracking-[0.14em] text-muted-foreground">ENGLISH</span>
                     <p lang="en" className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed">
                       {english?.text || (isCredit ? "Opening SubNexa AI credit" : "Original line unavailable")}
                     </p>
                   </div>
-                  <div className="rounded-[4px] border border-primary/20 bg-primary/5 p-2.5">
+                  <div className="rounded-[5px] border border-primary/20 bg-primary/5 p-2.5">
                     <span className="text-[9px] font-medium tracking-[0.14em] text-primary/80">සිංහල</span>
                     <p lang="si" className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{cue.text}</p>
                   </div>
@@ -1151,7 +1151,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 </p>
               )}
               {isEditing && (
-                <div className="mt-2 space-y-2 rounded-[4px] border border-primary/40 bg-primary/5 p-3">
+                <div className="mt-2 space-y-2 rounded-[5px] border border-primary/40 bg-primary/5 p-3">
                   <Label htmlFor={`sn-edit-${i}`} className="text-[11px]">Edit Sinhala subtitle #{cue.number}</Label>
                   <Textarea id={`sn-edit-${i}`} lang="si" rows={3} maxLength={600} defaultValue={editDraft.current} onChange={e => { editDraft.current = e.target.value; }} className="min-h-20 text-sm" />
                   {editError && <p role="alert" className="text-[11px] text-destructive">{editError}</p>}
@@ -1195,28 +1195,29 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   ];
 
   return (
-    <div className="inc-fade-in relative isolate flex min-h-screen flex-col bg-background" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
+    <div className="dark framer-landing inc-fade-in relative isolate flex min-h-screen flex-col overflow-x-clip bg-background text-ink" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[760px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(232,232,238,0.12),transparent_70%)]" />
       <SubtitleLibrary open={library} onOpenChange={setLibrary} api={API} />
 
       {signedIn && (
-        <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-40 border-b border-border bg-background">
+          <div className="mx-auto flex h-[72px] w-full max-w-[1200px] items-center gap-6 px-5 sm:px-8">
             <a href="#sn-overview" className="flex items-center gap-2.5" aria-label="SubNexa studio">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-6 w-auto" />
             </a>
-            <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Studio">
+            <nav className="hidden items-center gap-1 lg:flex" aria-label="Studio">
               {studioNav.map(item => (
-                <a key={item.href} href={item.href} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-body transition-colors hover:bg-ink/5 hover:text-ink">
+                <a key={item.href} href={item.href} className="flex h-9 items-center gap-1.5 rounded-lg px-3 text-[14px] font-semibold text-body transition-colors hover:bg-ink/[0.05] hover:text-ink">
                   <item.icon className="size-3.5" />{item.label}
                 </a>
               ))}
             </nav>
             <div className="ml-auto flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setLibrary(true)} aria-label="Open subtitle library">
+              <Button type="button" variant="outline" size="sm" className="h-9 rounded-md" onClick={() => setLibrary(true)} aria-label="Open subtitle library">
                 <BookOpen className="size-4" /><span className="hidden sm:inline">Library</span>
               </Button>
-              <div className="relative hidden items-center gap-2 rounded-lg border border-border bg-ink/[0.04] px-3 md:flex">
+              <div className="relative hidden items-center gap-2 rounded-md border border-border bg-white/[0.03] px-3 md:flex">
                 <Search className="size-3.5 text-content-tertiary" />
                 <Input
                   value={cueSearch}
@@ -1230,11 +1231,10 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               <Button variant="ghost" size="icon" className="text-body hover:text-ink" aria-label="Guide" onClick={() => window.open("/guide", "_blank", "noopener,noreferrer")}>
                 <CircleHelp />
               </Button>
-              <ThemeToggle />
               <SubNexaAccountDock />
             </div>
           </div>
-          <nav className="inc-hide-scrollbar flex gap-1 overflow-x-auto border-t border-border/60 px-4 py-2 text-[11px] lg:hidden" aria-label="Studio">
+          <nav className="inc-hide-scrollbar flex gap-1 overflow-x-auto border-t border-border/60 px-5 py-2 text-[11px] lg:hidden" aria-label="Studio">
             {studioNav.map(item => (
               <a key={item.href} href={item.href} className="shrink-0 rounded-lg px-2.5 py-1.5 text-body transition-colors hover:bg-ink/5 hover:text-ink">{item.label}</a>
             ))}
@@ -1244,28 +1244,28 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
       )}
 
       {signedIn && (
-      <main id="sn-workspace" className="w-full flex-1 scroll-mt-6 px-4 pb-28 pt-6 sm:px-6 lg:px-8">
+      <main id="sn-workspace" className="relative mx-auto w-full max-w-[1200px] flex-1 scroll-mt-6 px-5 pb-28 pt-8 sm:px-8">
         <FairUse api={API} />
         <div id="sn-overview" className="mb-8 scroll-mt-24">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Overview</p>
-              <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Welcome back, {firstName}</h2>
+              <h2 className="mt-2 text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.05]">Welcome back, {firstName}</h2>
             </div>
             <span className="text-[11px] text-content-tertiary">{statusTitle}</span>
           </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-[5px] border border-border bg-[var(--next-gray-200)] sm:grid-cols-4 sm:divide-y-0">
             {studioStats.map(stat => (
-              <Card key={stat.label} className="border-border bg-card">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs font-medium text-body">{stat.label}</CardTitle>
+              <div key={stat.label} className="px-6 py-7">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-3xl font-semibold tracking-tight tabular-nums text-ink">{stat.value}</p>
+                    <p className="mt-1 text-[13px] text-content-tertiary">{stat.label}</p>
+                  </div>
                   <stat.icon aria-hidden className="size-4 text-content-tertiary" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold tabular-nums">{stat.value}</p>
-                  <p className="mt-1 truncate text-[11px] text-content-tertiary">{stat.hint}</p>
-                </CardContent>
-              </Card>
+                </div>
+                <p className="mt-2 truncate text-[11px] text-content-tertiary">{stat.hint}</p>
+              </div>
             ))}
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
@@ -1345,21 +1345,21 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
             </Card>
           </div>
         </div>
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div id="sn-platform" className="flex scroll-mt-24 flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="h-6 w-1 rounded-full bg-primary" />
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Workspace</h2>
+              <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.05]">Workspace</h2>
               <Badge className="h-5 bg-primary px-2 text-[9px] font-bold tracking-[0.14em]">{modelChoice === "subnexa_11" ? "1.1" : modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
             </div>
-            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+            <p className="max-w-xl text-[15px] leading-relaxed text-body">
               Upload, translate and review your next episode. Nothing downloads until you say so.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className="size-9 rounded-[4px]" aria-label="Billboard brightness settings">
+                <Button variant="outline" size="icon" className="size-9 rounded-[5px]" aria-label="Billboard brightness settings">
                   <Settings2 className="size-4" />
                 </Button>
               </PopoverTrigger>
@@ -1372,7 +1372,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 <p className="text-[11px] leading-relaxed text-muted-foreground">Adjust how strongly the billboard artwork shows behind the stage.</p>
               </PopoverContent>
             </Popover>
-            <div className="flex items-center gap-2 rounded-[4px] border border-border bg-ink/[0.04] px-3.5 py-2 text-xs">
+            <div className="flex items-center gap-2 rounded-[5px] border border-border bg-ink/[0.04] px-3.5 py-2 text-xs">
               <Languages className="size-3.5 text-primary" />
               <span className="text-muted-foreground">English</span>
               <ChevronRight className="size-3.5 text-content-tertiary" />
@@ -1381,7 +1381,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           </div>
         </div>
 
-        <nav className="sticky top-16 z-30 mt-6 flex overflow-hidden rounded-[6px] border border-border bg-card" aria-label="Progress">
+        <nav className="sticky top-[72px] z-30 mt-6 flex overflow-hidden rounded-[5px] border border-border bg-[var(--next-gray-200)]" aria-label="Progress">
           <StepLink href="#sn-setup" index={1} label="Upload" state={file ? "done" : "current"} />
           <StepLink href="#sn-style" index={2} label="Style & glossary" state={!file ? "todo" : translating || readyDownload ? "done" : "current"} />
           <StepLink href="#sn-studio" index={3} label="Translate & review" state={readyDownload ? "done" : translating ? "current" : "todo"} />
@@ -1408,7 +1408,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   onDragLeave={() => setDragging(false)}
                   onDrop={e => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files?.[0] || null); }}
                   className={cn(
-                    "group flex w-full flex-col items-center justify-center gap-2 rounded-[6px] border border-dashed border-border bg-ink/[0.04] px-4 py-7 text-center transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60",
+                    "group flex w-full flex-col items-center justify-center gap-2 rounded-[8px] border border-dashed border-border bg-ink/[0.04] px-4 py-7 text-center transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60",
                     dragging && "border-primary bg-primary/10",
                   )}
                 >
@@ -1458,7 +1458,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                       const unavailable = option.id === "subnexa_11" ? modelAvailability?.subnexa_11 !== true : modelAvailability?.[option.id] === false;
                       return (
                         <Label key={option.id} htmlFor={`ai-model-${option.id}`}
-                          className={cn("flex min-h-36 cursor-pointer flex-col gap-2.5 rounded-[4px] border border-border bg-ink/[0.04] p-4 transition-colors hover:border-primary/40",
+                          className={cn("flex min-h-36 cursor-pointer flex-col gap-2.5 rounded-[5px] border border-border bg-ink/[0.04] p-4 transition-colors hover:border-primary/40",
                             active && "border-primary/60 bg-primary/10",
                             unavailable && "cursor-not-allowed opacity-55")}>
                           <div className="flex items-start justify-between gap-2">
@@ -1492,7 +1492,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                         key={option.value}
                         htmlFor={`style-${option.value}`}
                         className={cn(
-                          "flex cursor-pointer items-start gap-3 rounded-[4px] border border-border bg-ink/[0.04] p-4 transition-colors hover:border-border",
+                          "flex cursor-pointer items-start gap-3 rounded-[5px] border border-border bg-ink/[0.04] p-4 transition-colors hover:border-border",
                           style === option.value && "border-primary/60 bg-primary/10",
                         )}
                       >
@@ -1521,7 +1521,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                         key={format}
                         htmlFor={`format-${format}`}
                         className={cn(
-                          "flex cursor-pointer items-center justify-center rounded-[4px] border border-border bg-ink/[0.04] px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:border-border has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                          "flex cursor-pointer items-center justify-center rounded-[5px] border border-border bg-ink/[0.04] px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:border-border has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
                           exportFormat === format && "border-primary/60 bg-primary/10 text-foreground",
                         )}
                       >
@@ -1533,7 +1533,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     ASS can display red/white opening credits on compatible players. SRT uses plain text.
                   </p>
-                  <div className="flex items-start gap-3 rounded-[4px] border border-border bg-ink/[0.04] p-4">
+                  <div className="flex items-start gap-3 rounded-[5px] border border-border bg-ink/[0.04] p-4">
                     <Checkbox
                       id="opening-credit"
                       checked={openingCredit}
@@ -1557,7 +1557,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   <Button
                     id="sn-translate-action"
                     size="lg"
-                    className="h-11 w-full justify-between rounded-[4px] text-sm font-semibold shadow-lg shadow-primary/20"
+                    className="h-11 w-full justify-between rounded-[5px] text-sm font-semibold shadow-lg shadow-primary/20"
                     onClick={() => interruption === "stopped" ? requestResumeTranslation() : void handleTranslate()}
                     disabled={loading || !file || resumeRequested}
                   >
@@ -1624,7 +1624,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 )}
                 {modelChoice === "subnexa_02" && (
                   <div className="text-xs text-muted-foreground space-y-1" aria-label="Cloudflare Workers AI usage">
-                    <p className="font-medium">Cloudflare Workers AI · Today's site usage</p>
+                    <p className="font-medium">Cloudflare Workers AI · Today&apos;s site usage</p>
                     <p>Tracked tokens today: {cfUsage?.available ? (cfUsage.used ?? 0).toLocaleString() : "Unavailable — check usage setup"}</p>
                     <p>Tracked request attempts today: {cfUsage?.available ? (cfUsage.requests_used ?? 0).toLocaleString() : "Unavailable"}</p>
                     {cfUsage?.available && cfUsage.reset_at && <p>Daily reset: {new Date(cfUsage.reset_at).toLocaleString("en-GB", { timeZone: "Asia/Colombo", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })} (Sri Lanka)</p>}
@@ -1641,8 +1641,8 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                     <p>Tracked request attempts today: {quota?.available ? (quota.requests_used ?? 0).toLocaleString() : "Unavailable"}</p>
                     {quota?.available && quota.reset_at && <p>Daily reset: {new Date(quota.reset_at).toLocaleString("en-GB", { timeZone: "Asia/Colombo", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })} (Sri Lanka)</p>}
                     {estimatedFileRequests !== null && <p>This file: roughly {estimatedFileRequests} requests including review and a 10% repair allowance. {quota?.available && quota.remaining != null ? `About ${Math.floor(quota.remaining / estimatedFileRequests)} files of this size remaining.` : ""} Actual usage may be higher.</p>}
-                    <p>Estimate from this site's tracked attempts since setup; earlier and external usage may reduce availability.</p>
-                    <p>Saved in Supabase · Site-tracked usage only; not Google's live quota. {geminiUsage?.missing ? "Some response usage is missing." : ""} {geminiUsage?.pending ? "Usage sync pending." : ""}</p>
+                    <p>Estimate from this site&apos;s tracked attempts since setup; earlier and external usage may reduce availability.</p>
+                    <p>Saved in Supabase · Site-tracked usage only; not Google&apos;s live quota. {geminiUsage?.missing ? "Some response usage is missing." : ""} {geminiUsage?.pending ? "Usage sync pending." : ""}</p>
                   </div>
                 )}
                 {translating && !interruption && !isError && (
@@ -1722,7 +1722,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                         </div>
                       </div>
                     )) : (
-                      <p className="rounded-[4px] border border-dashed border-border/60 bg-ink/[0.03] p-3 text-xs text-muted-foreground">
+                      <p className="rounded-[5px] border border-dashed border-border/60 bg-ink/[0.03] p-3 text-xs text-muted-foreground">
                         Translation and review stages appear here as they happen.
                       </p>
                     )}
@@ -1811,7 +1811,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                       <div
                         ref={mode === tab ? previewViewport : null}
                         tabIndex={0} aria-label={`${mode} subtitle editor`}
-                        className={cn("subnexa-editor-scroll h-[400px] rounded-[4px] border border-border/60 bg-ink/[0.03] p-3", mode === "compare" && "h-[460px]")}
+                        className={cn("subnexa-editor-scroll h-[400px] rounded-[5px] border border-border/60 bg-ink/[0.03] p-3", mode === "compare" && "h-[460px]")}
                       >
                         {renderCues()}
                       </div>
@@ -1835,7 +1835,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   </div>
                 )}
 
-                <Collapsible open={cinemaOpen} onOpenChange={setCinemaOpen} className="rounded-[4px] border border-border/60 bg-ink/[0.03]">
+                <Collapsible open={cinemaOpen} onOpenChange={setCinemaOpen} className="rounded-[5px] border border-border/60 bg-ink/[0.03]">
                   <CollapsibleTrigger asChild>
                     <button type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
                       <span className="flex items-center gap-2 text-xs font-medium"><Film className="size-3.5 text-primary" />Cinematic subtitle preview</span>
@@ -1847,7 +1847,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="space-y-2 px-3 pb-3">
-                      <div className="cinema-screen flex aspect-video min-h-[170px] flex-col items-center justify-end rounded-[4px] px-6 pb-5 text-center">
+                      <div className="cinema-screen flex aspect-video min-h-[170px] flex-col items-center justify-end rounded-[5px] px-6 pb-5 text-center">
                         {sceneIsCredit && readyDownload?.format === "ass"
                           ? <div className="flex flex-wrap items-center justify-center gap-2 text-base font-semibold text-white sm:text-xl"><span>Sinhala Sub</span><strong className="text-primary">Generated by SubNexa AI</strong></div>
                           : <p lang={tab === "source" ? "en" : "si"} className="max-w-xl whitespace-pre-wrap text-sm font-semibold leading-relaxed text-white sm:text-lg">{sceneCue?.text || "Choose a subtitle line using Cinema preview."}</p>}
@@ -1889,12 +1889,13 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           </div>
         </div>
 
+        <span id="sn-features" className="block scroll-mt-24" aria-hidden />
         <Card id="sn-glossary" className="mt-5 scroll-mt-24 border-border bg-card">
           <Collapsible open={glossaryOpen} onOpenChange={setGlossaryOpen}>
             <CollapsibleTrigger asChild>
               <button type="button" className="flex w-full items-center justify-between gap-3 px-6 py-5 text-left">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-[4px] border border-border bg-ink/[0.04] text-primary">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[5px] border border-border bg-ink/[0.04] text-primary">
                     <Lock className="size-4" />
                   </span>
                   <div>
@@ -2020,7 +2021,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 </div>
 
                 {glossaryNotice && (
-                  <p role="status" className="rounded-[4px] border border-success/25 bg-success/10 px-3 py-2 text-[11px] text-success">{glossaryNotice}</p>
+                  <p role="status" className="rounded-[5px] border border-success/25 bg-success/10 px-3 py-2 text-[11px] text-success">{glossaryNotice}</p>
                 )}
 
                 <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2040,7 +2041,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
 
                 <div className="cue-scroll max-h-64 space-y-1.5 overflow-y-auto pr-1">
                   {visibleGlossary.length ? visibleGlossary.map(({ rule: r, index: i }) => (
-                    <div key={`${r.source}:${i}`} className="flex items-center justify-between gap-3 rounded-[4px] border border-border/50 bg-ink/[0.04] px-3 py-2">
+                    <div key={`${r.source}:${i}`} className="flex items-center justify-between gap-3 rounded-[5px] border border-border/50 bg-ink/[0.04] px-3 py-2">
                       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                         <strong className="font-medium">{r.source}</strong>
                         <ArrowRight className="size-3 text-muted-foreground" />
@@ -2062,7 +2063,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                       </div>
                     </div>
                   )) : (
-                    <p className="rounded-[4px] border border-dashed border-border/60 bg-ink/[0.03] p-3 text-xs text-muted-foreground">
+                    <p className="rounded-[5px] border border-dashed border-border/60 bg-ink/[0.03] p-3 text-xs text-muted-foreground">
                       {glossaryRules.length ? "No matching terms." : "No active rules. Enable a group above or add a custom rule."}
                     </p>
                   )}
@@ -2109,7 +2110,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                     </Button>
                   </div>
                   {playgroundResult && (
-                    <div className="space-y-2 rounded-[4px] border border-border/60 bg-ink/[0.04] p-3">
+                    <div className="space-y-2 rounded-[5px] border border-border/60 bg-ink/[0.04] p-3">
                       <p className="text-[11px] text-muted-foreground">Masked before Gemini</p>
                       <code className="block break-words font-mono text-[11px] text-foreground/90">{playgroundResult.masked}</code>
                       <p className="text-[11px] text-muted-foreground">Restored demonstration (not AI translated)</p>
@@ -2125,32 +2126,13 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           </Collapsible>
         </Card>
 
-        <footer className="mt-12 border-t border-border pt-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-5 w-auto" />
-              <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-content-tertiary">
-                Every story, in Sinhala. Timestamps protected, dialogue reviewed by you.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-body">
-              <a href="#sn-overview" className="transition-colors hover:text-ink">Overview</a>
-              <a href="#sn-setup" className="transition-colors hover:text-ink">Upload</a>
-              <a href="#sn-glossary" className="transition-colors hover:text-ink">Glossary</a>
-              <a href="/guide" target="_blank" rel="noreferrer" className="transition-colors hover:text-ink">Guide</a>
-              <a href="#top" className="transition-colors hover:text-ink">Back to top</a>
-            </div>
-          </div>
-          <p className="mt-6 text-right text-[10px] tracking-[0.08em] text-content-tertiary">
-            Design by <a href="https://zagan.space" target="_blank" rel="noreferrer" className="text-content-tertiary transition-colors hover:text-ink">Zagan</a>
-          </p>
-        </footer>
       </main>
       )}
 
+      {signedIn && <SiteFooter />}
+
       {signedIn && readyDownload && !readyCardVisible && !translating && !isError && (
-        <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-[6px] border border-success/30 bg-card p-3 shadow-2xl sm:bottom-5 sm:left-auto sm:right-5 sm:w-[min(460px,calc(100vw-2.5rem))]">
+        <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-[5px] border border-success/30 bg-[var(--next-gray-200)] p-3 shadow-2xl sm:bottom-5 sm:left-auto sm:right-5 sm:w-[min(460px,calc(100vw-2.5rem))]">
           <div className="flex min-w-0 items-center gap-2.5">
             <CheckCircle2 className="size-4 shrink-0 text-success" />
             <div className="min-w-0">
