@@ -39,7 +39,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { bilingualSrt } from "./bilingual";
-import QuickGuide from "../components/QuickGuide";
 import CommunityForm from "../components/CommunityForm";
 import FairUse from "../components/FairUse";
 
@@ -220,7 +219,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const [sceneIndex, setSceneIndex] = useState(0);
   const [backgroundDim, setBackgroundDim] = useState(78);
   const [readyCardVisible, setReadyCardVisible] = useState(true);
-  const [help, setHelp] = useState(false);
   const [glossarySearch, setGlossarySearch] = useState("");
   const [file, setFile] = useState<File | null>(null);
   // Library check: is a Sinhala subtitle for this film already in the library?
@@ -1204,8 +1202,8 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
         <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl">
           <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
             <a href="#sn-overview" className="flex items-center gap-2.5" aria-label="SubNexa studio">
-              <span className="grid size-7 place-items-center rounded-lg bg-ink text-background"><Languages className="size-4" /></span>
-              <span className="flex items-baseline gap-1 text-[20px] font-semibold tracking-[-0.04em]">SubNexa<span className="size-1.5 rounded-full bg-alarmalade" /></span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-6 w-auto" />
             </a>
             <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Studio">
               {studioNav.map(item => (
@@ -1229,7 +1227,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 />
                 <LibrarySearchResults query={cueSearch} api={API} onBrowse={() => setLibrary(true)} />
               </div>
-              <Button variant="ghost" size="icon" className="text-body hover:text-ink" aria-label="Guide" onClick={() => setHelp(true)}>
+              <Button variant="ghost" size="icon" className="text-body hover:text-ink" aria-label="Guide" onClick={() => window.open("/guide", "_blank", "noopener,noreferrer")}>
                 <CircleHelp />
               </Button>
               <ThemeToggle />
@@ -1382,8 +1380,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
             </div>
           </div>
         </div>
-
-        <QuickGuide open={help} onOpenChange={setHelp} />
 
         <nav className="sticky top-16 z-30 mt-6 flex overflow-hidden rounded-[6px] border border-border bg-card" aria-label="Progress">
           <StepLink href="#sn-setup" index={1} label="Upload" state={file ? "done" : "current"} />
@@ -2125,7 +2121,8 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
         <footer className="mt-12 border-t border-border pt-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <span className="netflix-logo text-lg">SubNexa</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-5 w-auto" />
               <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-content-tertiary">
                 Every story, in Sinhala. Timestamps protected, dialogue reviewed by you.
               </p>
@@ -2134,7 +2131,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               <a href="#sn-overview" className="transition-colors hover:text-ink">Overview</a>
               <a href="#sn-setup" className="transition-colors hover:text-ink">Upload</a>
               <a href="#sn-glossary" className="transition-colors hover:text-ink">Glossary</a>
-              <button type="button" onClick={() => setHelp(true)} className="transition-colors hover:text-ink">Guide</button>
+              <a href="/guide" target="_blank" rel="noreferrer" className="transition-colors hover:text-ink">Guide</a>
               <a href="#top" className="transition-colors hover:text-ink">Back to top</a>
             </div>
           </div>

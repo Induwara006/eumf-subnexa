@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
+import SiteFooter from "@/components/SiteFooter";
+import Reveal from "@/components/Reveal";
 import type { Metadata } from "next";
 import { LibraryBrowser } from "@/components/SubtitleLibrary";
+
 type SeasonData = {series_title?: string; season_number?: number; year?: string; items?: {poster_url?: string | null; title?: string}[]};
+
 async function seasonDetails(key: string): Promise<SeasonData | null> {
   if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(key)) return null;
   try {
@@ -12,6 +16,7 @@ async function seasonDetails(key: string): Promise<SeasonData | null> {
     return await response.json();
   } catch { return null; }
 }
+
 export async function generateMetadata({params}: {params: Promise<{key: string}>}): Promise<Metadata> {
   const {key} = await params;
   const details = await seasonDetails(key);
@@ -22,11 +27,35 @@ export async function generateMetadata({params}: {params: Promise<{key: string}>
   const image = poster ? `https://subnexa.lk/api${poster}` : undefined;
   return {title, description, alternates:{canonical}, openGraph:{title,description,url:canonical,type:"website",...(image?{images:[{url:image,alt:`${details?.series_title || "TV Series"} poster`}]}:{})}, twitter:{card:image?"summary_large_image":"summary",title,description,...(image?{images:[image]}:{})}};
 }
+
 export default async function SeasonPage({params}: {params: Promise<{key: string}>}) {
   const {key} = await params;
   if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(key)) notFound();
-  return <div className="min-h-screen bg-background text-ink">
-    <Header />
-    <main className="mx-auto max-w-[1240px] px-5 py-10 sm:px-8"><LibraryBrowser key={key} api="" seasonKey={key} /></main>
-  </div>;
+
+  return (
+    <div className="dark framer-landing relative isolate min-h-screen overflow-hidden bg-background text-ink">
+      <Header overlay showThemeToggle={false} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[900px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(232,232,238,0.12),transparent_70%)]" />
+
+      <main className="relative mx-auto w-full max-w-[1200px] px-5 pb-24 pt-36 sm:px-8 sm:pt-44">
+        <Reveal className="max-w-3xl">
+          <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-content-tertiary">TV series</p>
+          <h1 className="mt-4 text-[clamp(2.4rem,5.5vw,4rem)] font-bold leading-[0.98] tracking-[-0.045em]">
+            Sinhala subtitles by episode.
+          </h1>
+          <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-body">
+            Pick an episode and download the Sinhala subtitle file. Every cue keeps its original timing.
+          </p>
+        </Reveal>
+
+        <Reveal className="mt-12" delay={0.1}>
+          <div className="rounded-[5px] border border-border bg-[var(--next-gray-200)] p-4 sm:p-6">
+            <LibraryBrowser key={key} api="" seasonKey={key} />
+          </div>
+        </Reveal>
+      </main>
+
+      <SiteFooter />
+    </div>
+  );
 }
