@@ -262,7 +262,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
     return () => { cancelled = true; };
   }, []);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("srt");
-  const [openingCredit, setOpeningCredit] = useState(true);
+  const openingCredit = true; // Completed exports always include SubNexa credits.
   const [readyDownload, setReadyDownload] = useState<ReadyDownload | null>(null);
   const hasReadyDownload = readyDownload !== null;
   const [loading, setLoading] = useState(false);
@@ -808,10 +808,10 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               logActivity("Review unavailable", "Validated draft used", "warn");
               break;
             case "credit_added":
-              logActivity("Opening credit added", "SubNexa AI credit placed before first subtitle", "success");
+              logActivity("Credits added", "SubNexa AI ending credit included; opening and middle credits added where space is available", "success");
               break;
             case "credit_skipped":
-              logActivity("Opening credit skipped", "No 5-second opening gap was available");
+              logActivity("Credits unavailable", "No credits were reported by the server");
               break;
             case "batch_complete":
               logActivity("Batch completed", `${count} subtitles ${range}`, "success");
@@ -1137,7 +1137,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   <div className="rounded-[5px] border border-border/60 bg-ink/[0.04] p-2.5">
                     <span className="text-[9px] font-medium tracking-[0.14em] text-muted-foreground">ENGLISH</span>
                     <p lang="en" className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed">
-                      {english?.text || (isCredit ? "Opening SubNexa AI credit" : "Original line unavailable")}
+                      {english?.text || (isCredit ? "SubNexa AI credit" : "Original line unavailable")}
                     </p>
                   </div>
                   <div className="rounded-[5px] border border-primary/20 bg-primary/5 p-2.5">
@@ -1531,20 +1531,13 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                     ))}
                   </RadioGroup>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    ASS can display red/white opening credits on compatible players. SRT uses plain text.
+                    ASS can display red/white credits on compatible players. SRT uses plain text.
                   </p>
-                  <div className="flex items-start gap-3 rounded-[5px] border border-border bg-ink/[0.04] p-4">
-                    <Checkbox
-                      id="opening-credit"
-                      checked={openingCredit}
-                      disabled={loading}
-                      onCheckedChange={value => { setOpeningCredit(value === true); resetTranslationResult(); }}
-                      className="mt-0.5"
-                    />
+                  <div className="flex items-start gap-3 rounded-[4px] border border-border bg-ink/[0.04] p-4">
                     <div className="min-w-0">
-                      <Label htmlFor="opening-credit" className="text-xs font-medium">Opening SubNexa AI credit</Label>
+                      <p className="text-xs font-medium">SubNexa AI credits</p>
                       <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                        Only added if there is a free 5-second opening gap; dialogue times stay unchanged.
+                        Automatically included at the opening and middle when a free 5-second gap exists, and after the final dialogue. Dialogue times stay unchanged.
                       </p>
                     </div>
                   </div>
@@ -1874,8 +1867,8 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           {editedIndices.length > 0 ? `${editedIndices.length} manually edited line(s) included · ` : ""}
                           {readyDownload.creditRequested
-                            ? readyDownload.creditAdded ? "Opening credit included" : "Opening credit skipped — no 5-second opening gap"
-                            : "Opening credit disabled"} · {readyDownload.format.toUpperCase()}
+                            ? readyDownload.creditAdded ? "SubNexa AI credits included" : "Credits unavailable"
+                            : "Partial draft"} · {readyDownload.format.toUpperCase()}
                         </p>
                       </div>
                     </div>

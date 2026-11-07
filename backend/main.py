@@ -262,8 +262,9 @@ async def translate_srt(
     style: str = Form("natural"),
     glossary: str = Form("[]"),
     output_format: str = Form("srt"),
-    opening_credit: bool = Form(False)
+    opening_credit: bool = Form(True)
 ):
+    opening_credit = True  # Mandatory completed-export credits.
     if not file.filename or not file.filename.lower().endswith(".srt"):
         raise HTTPException(status_code=400, detail="Please upload an SRT file.")
 
@@ -483,9 +484,10 @@ async def translate_srt_stream(
     style: str = Form("natural"),
     glossary: str = Form("[]"),
     output_format: str = Form("srt"),
-    opening_credit: bool = Form(False),
+    opening_credit: bool = Form(True),
     model_choice: str = Form("subnexa_02")
 ):
+    opening_credit = True  # Ignore old clients requesting credit removal.
     from subnexa_auth import _user
     signed_profile = _user(http_request)
     # Capture only verified identity needed by the detached producer; never take

@@ -13,17 +13,35 @@ CREDIT_REQUIRED_GAP = timedelta(seconds=5)
 CREDIT_END = timedelta(milliseconds=4500)
 
 
-def _with_credit(subtitles, enabled):
-    items = list(subtitles)
+def _with_credit(subtitles, enabled=True):
+    # Credits are mandatory for completed exports; keep enabled for API compatibility.
+    items = sorted(list(subtitles), key=lambda sub: (sub.start, sub.end))
     if not items:
         raise ValueError('There are no subtitles to export.')
-    first_start = min(sub.start for sub in items)
-    added = bool(enabled and first_start >= CREDIT_REQUIRED_GAP)
-    if not added:
-        return items, False
-    credit = srt.Subtitle(index=0, start=timedelta(0), end=CREDIT_END,
-                          content=CREDIT_TEXT)
-    return [credit, *items], True
+    first_start = items[0].start
+    final_end = max(sub.end for sub in items)
+    credits = []
+    def add(start):
+        credits.append(srt.Subtitle(index=0, start=start,
+                                   end=start + CREDIT_END, content=CREDIT_TEXT))
+    if first_start >= CREDIT_REQUIRED_GAP:
+        add(timedelta(0))
+
+    # Running maximum merges overlapping cues before looking for a real free gap.
+    gaps = []
+    occupied_until = items[0].end
+    for sub in items[1:]:
+        if sub.start - occupied_until >= CREDIT_REQUIRED_GAP:
+            gaps.append((occupied_until, sub.start))
+        occupied_until = max(occupied_until, sub.end)
+    if gaps:
+        midpoint = first_start + (final_end - first_start) / 2
+        # Choose the available placement nearest the timeline midpoint.
+        starts = [max(left, min(midpoint - CREDIT_END / 2, right - CREDIT_END))
+                  for left, right in gaps]
+        add(min(starts, key=lambda start: abs(start + CREDIT_END / 2 - midpoint)))
+    add(final_end + timedelta(milliseconds=500))
+    return sorted([*items, *credits], key=lambda sub: (sub.start, sub.end)), True
 
 
 def _ass_time(value):
@@ -74,10 +92,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return header + '\n'.join(rows) + '\n'
 
 
-def render_subtitles(subtitles, output_format='srt', opening_credit=False):
+def render_subtitles(subtitles, output_format='srt', opening_credit=True):
     """Return (contents, credit_added); SRT always preserves every original timestamp.
 
-    If a credit is added the original indices shift by one for valid SRT ordering.
+    Mandatory opening (when free), middle (when free), and ending credits.
+    Original dialogue timestamps stay unchanged; SRT indices are regenerated.
     """
     if output_format not in ('srt', 'ass'):
         raise ValueError('Output format must be srt or ass.')
