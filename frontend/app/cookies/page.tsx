@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Header from "@/components/Header";
+import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Cookie Policy | SubNexa",
@@ -48,13 +50,16 @@ const storage = [
 
 export default function CookiePolicyPage() {
   return (
-    <main className="min-h-screen bg-background px-5 py-12 text-foreground sm:px-8 sm:py-16">
-      <article className="mx-auto max-w-3xl">
-        <Link href="/" className="text-sm text-body transition-colors hover:text-ink">
+    <div className="dark framer-landing relative isolate min-h-screen overflow-hidden bg-background text-ink">
+      <Header overlay showThemeToggle={false} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[900px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(232,232,238,0.12),transparent_70%)]" />
+      <main className="relative mx-auto w-full max-w-[1200px] px-5 pb-24 pt-36 sm:px-8 sm:pt-44">
+        <article className="mx-auto max-w-3xl">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-body transition-colors hover:text-ink">
           ← Back to SubNexa
         </Link>
-        <header className="mt-10 border-b border-border pb-8">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-alarmalade">
+        <header className="mt-8 border-b border-border pb-8">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
             subnexa.lk
           </p>
           <h1 className="mt-3 text-4xl tracking-tight sm:text-5xl">Cookie Policy</h1>
@@ -158,7 +163,9 @@ export default function CookiePolicyPage() {
             SubNexa home
           </Link>
         </footer>
-      </article>
-    </main>
+        </article>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }

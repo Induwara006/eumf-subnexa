@@ -23,9 +23,9 @@ import {
   FileText,
   Film,
   Languages,
-  LayoutDashboard,
   Loader2,
   Lock,
+  Menu,
   Pencil,
   Play,
   Pause,
@@ -42,7 +42,7 @@ import { bilingualSrt } from "./bilingual";
 import CommunityForm from "../components/CommunityForm";
 import FairUse from "../components/FairUse";
 
-import SubNexaAccountDock from "../components/SubNexaAccountDock";
+import StudioSidebar from "../components/StudioSidebar";
 import SiteFooter from "../components/SiteFooter";
 import StudioPulse, { type PulsePoint } from "../components/StudioPulse";
 import SubtitleLibrary from "../components/SubtitleLibrary";
@@ -206,6 +206,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const fileInput = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"source" | "translated" | "compare">("source");
   const [library, setLibrary] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sourceText, setSourceText] = useState("");
   const [cueSearch, setCueSearch] = useState("");
   const [jumpNumber, setJumpNumber] = useState("");
@@ -1180,13 +1181,6 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   }
 
   const firstName = (accountName || "creator").split(/\s+/)[0];
-  const studioNav = [
-    { href: "#sn-overview", label: "Overview", icon: LayoutDashboard },
-    { href: "#sn-setup", label: "Upload & settings", icon: Upload },
-    { href: "#sn-translate-action", label: "Translate", icon: Languages },
-    { href: "#sn-studio", label: "Subtitles", icon: Captions },
-    { href: "#sn-glossary", label: "Glossary", icon: BookOpen },
-  ];
   const studioStats = [
     { label: "Subtitle cues", value: totalCount ? String(totalCount) : "—", hint: sourceCues.length ? "English SRT loaded" : "Waiting for a file", icon: Captions },
     { label: "Translated", value: `${progress}%`, hint: showProgress ? `${translatedCount} of ${totalCount || "—"} lines` : "Not started", icon: Languages },
@@ -1195,28 +1189,34 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   ];
 
   return (
-    <div className="dark framer-landing inc-fade-in relative isolate flex min-h-screen flex-col overflow-x-clip bg-background text-ink" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
+    <div className="dark framer-landing studio-dashboard inc-fade-in relative isolate min-h-screen bg-background text-ink" style={{ "--studio-dim": backgroundDim / 100 } as CSSProperties}>
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[760px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(232,232,238,0.12),transparent_70%)]" />
       <SubtitleLibrary open={library} onOpenChange={setLibrary} api={API} />
 
       {signedIn && (
-        <header className="sticky top-0 z-40 border-b border-border bg-background">
-          <div className="mx-auto flex h-[72px] w-full max-w-[1200px] items-center gap-6 px-5 sm:px-8">
-            <a href="#sn-overview" className="flex items-center gap-2.5" aria-label="SubNexa studio">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/SubNexa_Logo_Transparent.png" alt="SubNexa" className="h-6 w-auto" />
-            </a>
-            <nav className="hidden items-center gap-1 lg:flex" aria-label="Studio">
-              {studioNav.map(item => (
-                <a key={item.href} href={item.href} className="flex h-9 items-center gap-1.5 rounded-lg px-3 text-[14px] font-semibold text-body transition-colors hover:bg-ink/[0.05] hover:text-ink">
-                  <item.icon className="size-3.5" />{item.label}
-                </a>
-              ))}
-            </nav>
+        <StudioSidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          firstName={firstName}
+          name={accountName}
+          email={initialSession.email}
+          counts={{ cues: totalCount, glossary: glossaryRules.length }}
+          onOpenLibrary={() => { setSidebarOpen(false); setLibrary(true); }}
+        />
+      )}
+
+      {signedIn && (
+      <div className="lg:pl-[272px]">
+        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+          <div className="flex h-[64px] w-full items-center gap-3 px-4 sm:px-6">
+            <Button type="button" variant="outline" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation">
+              <Menu className="size-4" />
+            </Button>
+            <div className="hidden min-w-0 sm:block">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-content-tertiary">Studio</p>
+              <p className="truncate text-sm font-semibold text-ink">Welcome back, {firstName}</p>
+            </div>
             <div className="ml-auto flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" className="h-9 rounded-md" onClick={() => setLibrary(true)} aria-label="Open subtitle library">
-                <BookOpen className="size-4" /><span className="hidden sm:inline">Library</span>
-              </Button>
               <div className="relative hidden items-center gap-2 rounded-md border border-border bg-white/[0.03] px-3 md:flex">
                 <Search className="size-3.5 text-content-tertiary" />
                 <Input
@@ -1228,23 +1228,17 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 />
                 <LibrarySearchResults query={cueSearch} api={API} onBrowse={() => setLibrary(true)} />
               </div>
+              <Button type="button" variant="outline" size="sm" className="h-9 rounded-md" onClick={() => setLibrary(true)} aria-label="Open subtitle library">
+                <BookOpen className="size-4" /><span className="hidden sm:inline">Library</span>
+              </Button>
               <Button variant="ghost" size="icon" className="text-body hover:text-ink" aria-label="Guide" onClick={() => window.open("/guide", "_blank", "noopener,noreferrer")}>
                 <CircleHelp />
               </Button>
-              <SubNexaAccountDock />
             </div>
           </div>
-          <nav className="inc-hide-scrollbar flex gap-1 overflow-x-auto border-t border-border/60 px-5 py-2 text-[11px] lg:hidden" aria-label="Studio">
-            {studioNav.map(item => (
-              <a key={item.href} href={item.href} className="shrink-0 rounded-lg px-2.5 py-1.5 text-body transition-colors hover:bg-ink/5 hover:text-ink">{item.label}</a>
-            ))}
-            <button type="button" onClick={() => setLibrary(true)} className="shrink-0 rounded-lg px-2.5 py-1.5 text-body transition-colors hover:bg-ink/5 hover:text-ink">Discover subtitles</button>
-          </nav>
         </header>
-      )}
 
-      {signedIn && (
-      <main id="sn-workspace" className="relative mx-auto w-full max-w-[1200px] flex-1 scroll-mt-6 px-5 pb-28 pt-8 sm:px-8">
+        <main id="sn-workspace" className="relative mx-auto w-full max-w-[1200px] flex-1 scroll-mt-6 px-4 pb-28 pt-8 sm:px-6 lg:px-8">
         <FairUse api={API} />
         <div id="sn-overview" className="mb-8 scroll-mt-24">
           <div className="flex flex-wrap items-end justify-between gap-2">
@@ -1381,7 +1375,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           </div>
         </div>
 
-        <nav className="sticky top-[72px] z-30 mt-6 flex overflow-hidden rounded-[5px] border border-border bg-[var(--next-gray-200)]" aria-label="Progress">
+        <nav className="sticky top-[64px] z-30 mt-6 flex overflow-hidden rounded-[5px] border border-border bg-[var(--next-gray-200)]" aria-label="Progress">
           <StepLink href="#sn-setup" index={1} label="Upload" state={file ? "done" : "current"} />
           <StepLink href="#sn-style" index={2} label="Style & glossary" state={!file ? "todo" : translating || readyDownload ? "done" : "current"} />
           <StepLink href="#sn-studio" index={3} label="Translate & review" state={readyDownload ? "done" : translating ? "current" : "todo"} />
@@ -1725,7 +1719,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               </CardContent>
             </Card>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="space-y-3">
               <CommunityForm kind="report" title={file?.name || ""} />
               {readyDownload && <Button variant="outline" onClick={downloadBilingual}>Download Sinhala + English SRT</Button>}
             </div>
@@ -2120,9 +2114,9 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
         </Card>
 
       </main>
+        <SiteFooter />
+      </div>
       )}
-
-      {signedIn && <SiteFooter />}
 
       {signedIn && readyDownload && !readyCardVisible && !translating && !isError && (
         <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-[5px] border border-success/30 bg-[var(--next-gray-200)] p-3 shadow-2xl sm:bottom-5 sm:left-auto sm:right-5 sm:w-[min(460px,calc(100vw-2.5rem))]">

@@ -131,6 +131,7 @@
   --font-display: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --font-geist: var(--font-geist-sans);
+  --font-space: var(--font-space-grotesk);
   --font-sinhala: var(--font-sinhala);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -373,6 +374,25 @@
   line-height: 1.5;
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Studio dashboard — Space Grotesk                                    */
+/* ------------------------------------------------------------------ */
+.studio-dashboard,
+.studio-dashboard button,
+.studio-dashboard input,
+.studio-dashboard textarea,
+.studio-dashboard select {
+  font-family: "Space Grotesk", var(--font-space-grotesk), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+.framer-landing.studio-dashboard h1,
+.framer-landing.studio-dashboard h2,
+.framer-landing.studio-dashboard h3,
+.framer-landing.studio-dashboard h4,
+.framer-landing.studio-dashboard [data-slot="card-title"] {
+  font-family: "Space Grotesk", var(--font-space-grotesk), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.03em;
 }
 
 .framer-landing h1 {
