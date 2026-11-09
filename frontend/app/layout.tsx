@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Inter, Inter_Tight } from "next/font/google";
+import { Inter, Inter_Tight, Space_Grotesk } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -18,6 +18,13 @@ const interTight = Inter_Tight({
   display: "swap",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  display: "swap",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const geist = localFont({
@@ -39,7 +46,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${interTight.variable} ${geist.variable} ${notoSinhala.variable} h-full antialiased`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${interTight.variable} ${spaceGrotesk.variable} ${geist.variable} ${notoSinhala.variable} h-full antialiased`}>
       <head>
         <script
           dangerouslySetInnerHTML={{

@@ -1,13 +1,15 @@
 "use client";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { openAuthPopup } from "@/lib/auth-popup";
 const API = (process.env.NEXT_PUBLIC_SUBNEXA_API_URL || (process.env.NODE_ENV === "production" ? "/subnexa-api" : "http://localhost:8000")).replace(/\/$/, "");
 export default function CommunityForm({kind,title=""}:{kind:"request"|"report";title?:string}) {
- const [open,setOpen]=useState(false),[name,setName]=useState(title),[details,setDetails]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[login,setLogin]=useState(false);
+ const [name,setName]=useState(title),[details,setDetails]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[login,setLogin]=useState(false);
  const event = useRef<string | null>(null);
  const label = kind === "request" ? "Request a subtitle" : "Report a translation issue";
+ const description = kind === "request"
+   ? "Tell us the movie or series, year, season and episode. Requests are reviewed; delivery is not guaranteed."
+   : "Include the subtitle number, original English line, current Sinhala line and your suggested correction. Reports are reviewed before glossary changes.";
  async function submit(e: React.FormEvent) {
   e.preventDefault(); if (busy) return;
   setBusy(true);setMessage("");setLogin(false);
@@ -21,15 +23,45 @@ export default function CommunityForm({kind,title=""}:{kind:"request"|"report";t
   } catch(error) {setMessage(error instanceof Error ? error.message : "Could not send. Try again.");}
   finally{setBusy(false);}
  }
- return <><Button variant="outline" onClick={()=>{setName(title);setOpen(true);}}>{label}</Button>
- <Dialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}}><DialogContent className="max-h-[85dvh] overflow-y-auto">
- <DialogHeader><DialogTitle>{label}</DialogTitle><DialogDescription>{kind === "request" ? "Tell us the movie or series, year, season and episode. Requests are reviewed; delivery is not guaranteed." : "Include the subtitle number, original English line, current Sinhala line and your suggested correction. Reports are reviewed before glossary changes."}</DialogDescription></DialogHeader>
- <form onSubmit={submit} className="space-y-4">
- <label className="block text-sm">Movie or series title<input required maxLength={160} disabled={busy} value={name} onChange={e=>{setName(e.target.value);event.current=null;}} className="mt-2 w-full rounded-lg border border-input bg-surface-primary p-3 outline-none focus:border-ring" /></label>
- <label className="block text-sm">Details<textarea required maxLength={2000} rows={5} disabled={busy} value={details} onChange={e=>{setDetails(e.target.value);event.current=null;}} className="mt-2 w-full rounded-lg border border-input bg-surface-primary p-3 outline-none focus:border-ring" /></label>
- <p className="text-xs text-muted-foreground">Visible to the site team only. Do not include API keys or other private information. Up to 10 submissions per day.</p>
- <Button type="submit" disabled={busy||!name.trim()||!details.trim()}>{busy?"Sending…":"Send"}</Button>
- {message&&<p role="status" className="text-sm">{message}</p>}
- {login&&<a className="block underline" href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); openAuthPopup(`${API}/subnexa-auth/login`); }}>Sign in with Google</a>}
- </form></DialogContent></Dialog></>;
+ return (
+  <section className="w-full rounded-[5px] border border-border bg-[var(--next-gray-200)] p-5">
+   <div>
+    <h3 className="text-sm font-semibold text-ink">{label}</h3>
+    <p className="mt-1 max-w-xl text-xs leading-relaxed text-body">{description}</p>
+   </div>
+   <form onSubmit={submit} className="mt-4 space-y-3">
+    <label className="block text-xs">
+     <span className="font-medium text-body">Movie or series title</span>
+     <input
+      required
+      maxLength={160}
+      disabled={busy}
+      value={name}
+      onChange={e=>{setName(e.target.value);event.current=null;}}
+      placeholder="e.g. Interstellar (2014)"
+      className="mt-1.5 w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-ring disabled:opacity-60"
+     />
+    </label>
+    <label className="block text-xs">
+     <span className="font-medium text-body">Details</span>
+     <textarea
+      required
+      maxLength={2000}
+      rows={4}
+      disabled={busy}
+      value={details}
+      onChange={e=>{setDetails(e.target.value);event.current=null;}}
+      placeholder={kind === "request" ? "Season, episode, release year or any helpful details…" : "Subtitle number, the line that needs fixing and your suggestion…"}
+      className="mt-1.5 w-full resize-y rounded-[5px] border border-input bg-background px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-ring disabled:opacity-60"
+     />
+    </label>
+    <p className="text-[11px] leading-relaxed text-content-tertiary">Visible to the site team only. Do not include API keys or other private information. Up to 10 submissions per day.</p>
+    <div className="flex flex-wrap items-center gap-3">
+     <Button type="submit" disabled={busy||!name.trim()||!details.trim()}>{busy?"Sending…":"Send"}</Button>
+     {message&&<p role="status" className="text-xs text-body">{message}</p>}
+    </div>
+    {login&&<a className="block text-xs text-primary underline underline-offset-4" href={`${API}/subnexa-auth/login`} onClick={(event) => { event.preventDefault(); openAuthPopup(`${API}/subnexa-auth/login`); }}>Sign in with Google</a>}
+   </form>
+  </section>
+ );
 }

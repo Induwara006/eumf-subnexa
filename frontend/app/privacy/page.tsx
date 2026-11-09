@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Header from "@/components/Header";
+import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | SubNexa",
@@ -71,50 +73,55 @@ const sections = [
 
 export default function PrivacyPolicyPage() {
   return (
-    <main className="min-h-screen bg-background px-5 py-12 text-foreground sm:px-8 sm:py-16">
-      <article className="mx-auto max-w-3xl">
-        <Link href="/" className="text-sm text-body transition-colors hover:text-ink">
-          ← Back to SubNexa
-        </Link>
-        <header className="mt-10 border-b border-border pb-8">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-alarmalade">
-            subnexa.lk
-          </p>
-          <h1 className="mt-3 text-4xl tracking-tight sm:text-5xl">Privacy Policy</h1>
-          <p className="mt-4 text-sm text-content-tertiary">
-            Effective date: November 6, 2026
-          </p>
-          <p className="mt-5 text-base leading-7 text-body">
-            This policy explains how SubNexa handles information when you visit
-            the website, sign in, or use its subtitle and library features.
-          </p>
-        </header>
-
-        <div className="divide-y divide-border">
-          {sections.map((section) => (
-            <section key={section.title} className="py-7">
-              <h2 className="text-xl font-medium tracking-tight text-ink">
-                {section.title}
-              </h2>
-              <div className="mt-3 space-y-3 text-sm leading-7 text-body">
-                {section.paragraphs.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <footer className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border py-6 text-sm text-body">
-          <Link href="/cookies" className="transition-colors hover:text-ink">
-            Cookie Policy
+    <div className="dark framer-landing relative isolate min-h-screen overflow-hidden bg-background text-ink">
+      <Header overlay showThemeToggle={false} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[900px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(232,232,238,0.12),transparent_70%)]" />
+      <main className="relative mx-auto w-full max-w-[1200px] px-5 pb-24 pt-36 sm:px-8 sm:pt-44">
+        <article className="mx-auto max-w-3xl">
+          <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-body transition-colors hover:text-ink">
+            ← Back to SubNexa
           </Link>
-          <Link href="/" className="transition-colors hover:text-ink">
-            SubNexa home
-          </Link>
-        </footer>
-      </article>
-    </main>
+          <header className="mt-8 border-b border-border pb-8">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
+              subnexa.lk
+            </p>
+            <h1 className="mt-3 text-4xl tracking-tight sm:text-5xl">Privacy Policy</h1>
+            <p className="mt-4 text-sm text-content-tertiary">
+              Effective date: November 6, 2026
+            </p>
+            <p className="mt-5 text-base leading-7 text-body">
+              This policy explains how SubNexa handles information when you visit
+              the website, sign in, or use its subtitle and library features.
+            </p>
+          </header>
+
+          <div className="divide-y divide-border">
+            {sections.map((section) => (
+              <section key={section.title} className="py-7">
+                <h2 className="text-xl font-medium tracking-tight text-ink">
+                  {section.title}
+                </h2>
+                <div className="mt-3 space-y-3 text-sm leading-7 text-body">
+                  {section.paragraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <footer className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border py-6 text-sm text-body">
+            <Link href="/cookies" className="transition-colors hover:text-ink">
+              Cookie Policy
+            </Link>
+            <Link href="/" className="transition-colors hover:text-ink">
+              SubNexa home
+            </Link>
+          </footer>
+        </article>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
 
