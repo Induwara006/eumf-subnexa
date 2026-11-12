@@ -220,6 +220,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const [sceneIndex, setSceneIndex] = useState(0);
   const [backgroundDim, setBackgroundDim] = useState(78);
   const [readyCardVisible, setReadyCardVisible] = useState(true);
+  const [startNotice, setStartNotice] = useState(false);
   const [glossarySearch, setGlossarySearch] = useState("");
   const [file, setFile] = useState<File | null>(null);
   // Library check: is a Sinhala subtitle for this film already in the library?
@@ -348,6 +349,14 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
   const previewViewport = useRef<HTMLDivElement>(null);
   const readyCardRef = useRef<HTMLDivElement>(null);
   const nextActivityId = useRef(0);
+
+  // Centered popup when translation starts: closes with "Got it" or automatically after 5 seconds.
+  useEffect(() => {
+    if (!translating) { setStartNotice(false); return; }
+    setStartNotice(true);
+    const timer = window.setTimeout(() => setStartNotice(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [translating]);
 
   // V5.0.3.2: scroll to the existing action only after Stop is confirmed.
   useEffect(() => {
@@ -2116,6 +2125,18 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
       </main>
         <SiteFooter />
       </div>
+      )}
+
+      {startNotice && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="sn-start-notice-title">
+          <div className="w-full max-w-sm rounded-[8px] border border-[var(--next-gray-400)] bg-[var(--next-gray-200)] p-5 text-center shadow-2xl">
+            <Pause className="mx-auto mb-3 size-5 text-muted-foreground" />
+            <p id="sn-start-notice-title" className="text-sm font-medium">Translation started · පරිවර්තනය ආරම්භ විය</p>
+            <p className="mt-3 text-xs leading-relaxed">If translation auto paused, Please click Resume Translation.</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">පරිවර්තනය ස්වයංක්‍රීයව නතර වුණොත්, කරුණාකර Resume Translation ඔබන්න.</p>
+            <Button size="sm" className="mt-4 h-8 text-xs" onClick={() => setStartNotice(false)}>Got it</Button>
+          </div>
+        </div>
       )}
 
       {signedIn && readyDownload && !readyCardVisible && !translating && !isError && (
