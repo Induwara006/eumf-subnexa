@@ -3,6 +3,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import srt
 import asyncio
+import os
 import json
 
 from glossary_engine import parse_glossary, glossary_fingerprint, preview_glossary
@@ -22,9 +23,9 @@ class AdaptiveBatchPlanner:
     """
 
     INITIAL_LINES = 25
-    MIN_LINES = 5
-    MAX_LINES = 40
-    MAX_ENGLISH_CHARS = 3200
+    MIN_LINES = 10
+    MAX_LINES = 30
+    MAX_ENGLISH_CHARS = 1800
 
     def __init__(self):
         self.target_lines = self.INITIAL_LINES
@@ -57,7 +58,10 @@ class AdaptiveBatchPlanner:
 
 def _is_transient(error):
     details = str(error).upper()
-    return "503" in details or "UNAVAILABLE" in details
+    return any(marker in details for marker in (
+        "503", "UNAVAILABLE", "HIGH DEMAND", "OVERLOADED",
+        "TEMPORARILY UNAVAILABLE", "SERVICE UNAVAILABLE", "DEADLINE EXCEEDED"
+    ))
 
 
 def _is_quota(error):
@@ -66,19 +70,21 @@ def _is_quota(error):
 
 
 def _can_split(error):
-    """Only halve outputs that may improve with fewer entries.
+    """Halve outputs that may improve with fewer entries or under transient load.
 
-    Quota exhaustion, unavailable models, permission/authentication failures and
+    Quota exhaustion, permission/authentication failures and
     unknown network errors must not trigger a cascade of paid/free-tier calls.
     """
     details = str(error).upper()
-    if _is_quota(error) or _is_transient(error):
+    if _is_quota(error):
         return False
     if any(marker in details for marker in (
         "404", "NOT_FOUND", "401", "UNAUTHENTICATED",
         "403", "PERMISSION_DENIED", "API_KEY",
     )):
         return False
+    if _is_transient(error):
+        return True
     return isinstance(error, ValueError) or any(marker in details for marker in (
         "TOKEN LIMIT", "CONTEXT LENGTH", "REQUEST TOO LARGE", "INPUT TOO LONG"
     ))
@@ -101,6 +107,32 @@ def _neighbor_context(indexes, source_texts):
     ]
     return neighbors or None
 
+
+# Fair scheduling across ALL jobs: asyncio.Semaphore is FIFO, so every job gets
+# its next batch in turn instead of 500 users firing requests at the same time.
+_BATCH_SLOTS = None
+
+
+def _batch_slots():
+    global _BATCH_SLOTS
+    if _BATCH_SLOTS is None:
+        try:
+            limit = max(1, int(os.getenv("SUBNEXA_MAX_CONCURRENT_BATCHES", "4")))
+        except ValueError:
+            limit = 4
+        _BATCH_SLOTS = asyncio.Semaphore(limit)
+    return _BATCH_SLOTS
+
+
+async def _in_batch_slot(coro):
+    async with _batch_slots():
+        return await coro
+
+
+# Lines that keep failing validation (e.g. foreign_script). Remembered per job
+# for the life of the server process so every resume does not retry them again.
+_LINE_FAILS = {}
+MAX_LINE_FAILS = 2
 
 from progress_store import get_job_id, save_progress, load_progress, PIPELINE_VERSION
 
@@ -425,6 +457,8 @@ import hmac
 from subnexa_auth import current_user_sub
 
 _ACTIVE_TRANSLATIONS = {}
+MAX_CONCURRENT_TRANSLATIONS = int(os.getenv("SUBNEXA_MAX_CONCURRENT_JOBS", "35"))
+_TRANSLATION_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_TRANSLATIONS)
 
 async def _translation_events(record):
     """Subscribers may disconnect without cancelling the paid translation job."""
@@ -676,20 +710,28 @@ async def translate_srt_stream(
                 save_progress(job_id, saved)
                 yield interruption_event()
                 return
-            if pro_mode and total > 100 and planned_batches and planned_batches % 5 == 0:
-                for seconds in range(30, 0, -1):
-                    if control_record["action"]:
-                        save_progress(job_id, saved)
-                        yield interruption_event()
-                        return
-                    yield event("activity", stage="batch_cooldown", count=seconds)
-                    await asyncio.sleep(1)
-                yield event("activity", stage="batch_cooldown", count=0)
+            # Multiple accounts distributed in round-robin; no artificial cooldown needed
+            if pro_mode and total > 100 and planned_batches and planned_batches % 10 == 0:
+                await asyncio.sleep(0.5)
             planned_batches += 1
             indexes = (select_vps_batch(remaining, originals) if vps_mode else
                        select_cloudflare_batch(remaining, originals) if cf_normal
                        else planner.select(remaining, originals))
             remaining = remaining[len(indexes):]
+            stubborn_now = [i for i in indexes
+                            if _LINE_FAILS.get((job_id, i), 0) >= MAX_LINE_FAILS
+                            and str(i) not in saved]
+            if stubborn_now:
+                for i in stubborn_now:
+                    subtitles[i].content = originals[i]
+                    saved[str(i)] = originals[i]
+                save_progress(job_id, saved)
+                print(f"[SubNexa] skipped AI for stubborn subtitle(s) "
+                      f"{[i + 1 for i in stubborn_now]}; kept source text", flush=True)
+                yield event("progress", completed=len(saved), total=total)
+                indexes = [i for i in indexes if i not in stubborn_now]
+                if not indexes:
+                    continue
             queue = [indexes]
             had_split = False
             print(f"[SubNexa] adaptive batch: {len(indexes)} entries "
@@ -716,7 +758,9 @@ async def translate_srt_stream(
                 try:
                     print(f"[SubNexa] translating + reviewing {len(active)} entries "
                           f"(starting {active[0] + 1})", flush=True)
-                    for attempt in range(3):
+                    import random
+                    MAX_TRANSIENT_ATTEMPTS = 5
+                    for attempt in range(MAX_TRANSIENT_ATTEMPTS):
                         try:
                             # Forward actual model-stage callbacks immediately as SSE.
                             stage_queue = asyncio.Queue()
@@ -727,13 +771,16 @@ async def translate_srt_stream(
                                     raise RuntimeError("Translation control requested")
                                 stage_loop.call_soon_threadsafe(stage_queue.put_nowait, (stage, count))
 
-                            worker = asyncio.create_task(
-                                translate_batch_to_sinhala(
-                                    texts, style, on_stage=on_stage,
-                                    context_texts=_neighbor_context(active, originals),
-                                    glossary=glossary_rules
-                                )
+                            batch_coro = translate_batch_to_sinhala(
+                                texts, style, on_stage=on_stage,
+                                context_texts=_neighbor_context(active, originals),
+                                glossary=glossary_rules
                             )
+                            if not (cf_normal or vps_mode):
+                                if _batch_slots().locked():
+                                    on_stage("queued", len(active))
+                                batch_coro = _in_batch_slot(batch_coro)
+                            worker = asyncio.create_task(batch_coro)
                             try:
                                 while not worker.done() or not stage_queue.empty():
                                     try:
@@ -753,13 +800,13 @@ async def translate_srt_stream(
                         except Exception as error:
                             if _is_quota(error):
                                 raise  # Waiting cannot reset daily quota.
-                            if not _is_transient(error) or attempt == 2:
+                            if not _is_transient(error) or attempt == (MAX_TRANSIENT_ATTEMPTS - 1):
                                 raise
-                            wait_seconds = 5 * (2 ** attempt)
-                            print(f"[SubNexa] Gemini busy; retry in "
-                                  f"{wait_seconds}s", flush=True)
+                            wait_seconds = min(45.0, (5 * (2 ** attempt)) + random.uniform(1.0, 3.5))
+                            print(f"[SubNexa] Gemini busy (503); retry {attempt + 1}/{MAX_TRANSIENT_ATTEMPTS} in "
+                                  f"{wait_seconds:.1f}s", flush=True)
                             yield event("activity", stage="retry", count=len(active),
-                                        seconds=wait_seconds)
+                                        seconds=int(wait_seconds))
                             await asyncio.sleep(wait_seconds)
 
                     if take_switch_notice():
@@ -795,6 +842,9 @@ async def translate_srt_stream(
                           f"valid lines; targeted retry for "
                           f"{len(unresolved)} line(s): "
                           f"{[i + 1 for i in unresolved]}", flush=True)
+                    if len(active) == 1:
+                        for bad in unresolved:
+                            _LINE_FAILS[(job_id, bad)] = _LINE_FAILS.get((job_id, bad), 0) + 1
                     # If the repair request itself hit an API outage/quota,
                     # pause. Retrying other lines now would waste requests.
                     hard_failure = (
@@ -813,7 +863,7 @@ async def translate_srt_stream(
                         # The good entries will never be retranslated.
                         queue = [[i] for i in unresolved] + queue
                         continue
-                    if unresolved and not hard_failure and selected_mode() in ("subnexa_pro", "subnexa_11"):
+                    if unresolved and not hard_failure and not final_repair_pass and selected_mode() in ("subnexa_pro", "subnexa_11"):
                         deferred.update(unresolved)
                         print(f"[SubNexa] deferred subtitle(s) "
                               f"{[i + 1 for i in unresolved]}; continuing pending work",
@@ -821,11 +871,17 @@ async def translate_srt_stream(
                         yield event("activity", stage="repair_deferred",
                                     count=len(unresolved))
                         continue
-                    print(f"[SubNexa] paused: unrepaired subtitle(s) "
-                          f"{[i + 1 for i in unresolved]}", flush=True)
-                    yield event("activity", stage="failed", count=len(unresolved))
-                    yield interruption_event("failed", str(error.cause) if isinstance(error.cause, FairUseError) else None)
-                    return
+                    # Rescue stubborn lines instead of pausing the entire translation job
+                    print(f"[SubNexa AI] using best-effort rescue for unrepaired subtitle(s) {[i + 1 for i in unresolved]}", flush=True)
+                    for bad_idx in unresolved:
+                        # Use valid partial translation or original text as safe fallback
+                        rescue_text = error.valid_translations.get(bad_idx) or originals[bad_idx]
+                        subtitles[bad_idx].content = rescue_text
+                        saved[str(bad_idx)] = rescue_text
+                    save_progress(job_id, saved)
+                    yield event("activity", stage="saved", count=len(unresolved))
+                    yield event("progress", completed=len(saved), total=total)
+                    continue
 
                 except Exception as error:
                     if control_record["action"]:
@@ -923,10 +979,18 @@ async def translate_srt_stream(
         from subnexa_model_router import set_mode, reset_mode
         token = set_mode(model_choice)
         try:
-            async for chunk in generate_progress():
+            if _TRANSLATION_SEMAPHORE.locked():
                 async with control_record["condition"]:
-                    control_record["events"].append(chunk)
+                    control_record["events"].append("data: " + json.dumps({
+                        "type": "activity", "stage": "queued",
+                        "message": "High traffic: Queued for the next available translation slot..."
+                    }, ensure_ascii=False) + "\n\n")
                     control_record["condition"].notify_all()
+            async with _TRANSLATION_SEMAPHORE:
+                async for chunk in generate_progress():
+                    async with control_record["condition"]:
+                        control_record["events"].append(chunk)
+                        control_record["condition"].notify_all()
         except Exception as error:
             print(f"[SubNexa] job failed: {type(error).__name__}", flush=True)
             async with control_record["condition"]:

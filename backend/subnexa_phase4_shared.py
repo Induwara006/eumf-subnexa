@@ -50,7 +50,8 @@ class SharedRateGuard:
         try:
             allowed=await asyncio.to_thread(check_shared,path,ip)
         except Exception:
-            return await self.reject(send,503,'Rate limiter temporarily unavailable.')
+            # Fail-open: temporary database timeout must never block user translations with 503
+            allowed = True
         if not allowed: return await self.reject(send,429,'Too many requests. Retry shortly.')
         return await self.app(scope,receive,send)
     @staticmethod

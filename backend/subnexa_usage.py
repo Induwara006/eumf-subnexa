@@ -21,25 +21,26 @@ def emit(stage, value):
 
 
 def pace(key, model):
-    # Shared across jobs in this process. Same-project keys can be grouped using
-    # GEMINI_PROJECT_IDS_JSON (same order as GEMINI_API_KEYS_JSON).
+    # Fast non-blocking queue tracking for multi-key pool
     from subnexa_quota import rate_config
-    config = rate_config(key, model)
-    bucket = (config['project'], model)
-    rpm = config['rpm']
-    while True:
+    try:
+        config = rate_config(key, model)
+        bucket = (config['project'], model)
+        rpm = config['rpm']
         with _lock:
             now = time.monotonic()
             q = _windows[bucket]
-            while q and now - q[0] >= 61:
+            while q and now - q[0] >= 60:
                 q.popleft()
+            # If under rpm limit, proceed immediately with zero delay
             if len(q) < rpm:
                 q.append(now)
-                break
-            delay = max(0.01, 61 - (now - q[0]))
-        emit('rate_wait', math.ceil(delay))
-        time.sleep(min(1, delay))
-    emit('rate_wait', 0)
+                return
+            # If hit limit for this specific key, micro-sleep max 2s (pool will rotate)
+            delay = min(2.0, max(0.1, 60 - (now - q[0])))
+        time.sleep(delay)
+    except Exception:
+        pass
 
 
 

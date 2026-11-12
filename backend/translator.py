@@ -205,6 +205,106 @@ def _bad_script(value: str, original: str = "") -> bool:
                for char, count in output_foreign.items())
 
 
+def _is_foreign_letter(c: str) -> bool:
+    """Same definition of 'foreign' that _bad_script uses (not Sinhala, not Latin)."""
+    return (c.isalpha() and not (0x0D80 <= ord(c) <= 0x0DFF)
+            and "LATIN" not in unicodedata.name(c, ""))
+
+
+def _excess_foreign_positions(value: str, original: str = "") -> list[int]:
+    """Positions of foreign letters beyond what the English source itself contains."""
+    budget = Counter(c for c in original if _is_foreign_letter(c))
+    excess = []
+    for pos, c in enumerate(value):
+        if _is_foreign_letter(c):
+            if budget[c] > 0:
+                budget[c] -= 1
+            else:
+                excess.append(pos)
+    return excess
+
+
+def _foreign_scripts(value, original: str = "") -> list[str]:
+    """Script names only (e.g. TAMIL); never subtitle text."""
+    if not isinstance(value, str):
+        return []
+    return sorted({(unicodedata.name(value[p], "UNKNOWN").split(" ")[0])
+                   for p in _excess_foreign_positions(value, original)})
+
+
+def _foreign_fix_note(original, *candidates):
+    scripts = sorted({s for c in candidates for s in _foreign_scripts(c, original)})
+    if not scripts:
+        return None
+    return (f"Earlier attempts contained {', '.join(scripts)} letters, which are not allowed. "
+            "Write ONLY Sinhala script (Latin only for names that stay in English). "
+            "If a word or name was in another script, transliterate it phonetically into "
+            "Sinhala letters or translate it.")
+
+
+def _strip_stray_foreign(value, original: str = ""):
+    """Remove ONE stray foreign word or a few stray letters from an otherwise good line.
+
+    Deliberately narrow: the result is re-validated by the caller, at most one
+    word is dropped, and the line must keep at least three words in that case.
+    Returns None when the line should not be auto-cleaned.
+    """
+    if os.getenv("SUBNEXA_STRIP_FOREIGN", "1").strip() == "0":
+        return None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    excess = set(_excess_foreign_positions(value, original))
+    if not excess:
+        return None
+    pieces, dropped, words, pos = [], 0, 0, 0
+    for part in re.split(r"(\s+)", value):
+        start, pos = pos, pos + len(part)
+        if not part or part.isspace():
+            pieces.append(part)
+            continue
+        words += 1
+        bad = [i for i in range(start, pos) if i in excess]
+        if not bad:
+            pieces.append(part)
+            continue
+        letters = sum(1 for ch in part if ch.isalpha())
+        if len(bad) / max(1, letters) >= 0.5:
+            dropped += 1                      # the whole word is foreign
+            continue
+        pieces.append("".join(ch for i, ch in zip(range(start, pos), part)
+                              if i not in excess))
+    if dropped > 1 or (dropped == 1 and words < 3):
+        return None
+    cleaned = "".join(pieces)
+    cleaned = re.sub(r"[ \t]+", " ", cleaned)
+    cleaned = re.sub(r" *\n *", "\n", cleaned).strip()
+    if not any(0x0D80 <= ord(ch) <= 0x0DFF for ch in cleaned):
+        return None
+    return cleaned
+
+
+def _review_skip_reason():
+    """Skip the optional review call only when Gemini capacity is scarce.
+
+    SUBNEXA_REVIEW_MODE: always | adaptive (default) | off.
+    Skipped reviews still go through the normal validation and repair path.
+    """
+    mode = os.getenv("SUBNEXA_REVIEW_MODE", "adaptive").strip().lower()
+    if mode == "off":
+        return "SUBNEXA_REVIEW_MODE=off"
+    if mode != "adaptive":
+        return None
+    try:
+        from subnexa_account_pool import pool_status
+        status = pool_status("gemini", MODEL)
+        total, ready = status["total"], status["ready"]
+        if total >= 3 and ready * 3 <= total:
+            return f"only {ready}/{total} accounts ready"
+    except Exception:
+        pass
+    return None
+
+
 def _unexpected_symbols(value: str, original: str = "") -> bool:
     """Reject obvious output corruption without banning legitimate source symbols.
 
@@ -608,24 +708,30 @@ ENGLISH AND DRAFT SINHALA PAIRS:
 {json.dumps(pairs, ensure_ascii=False)}
 """
 
-    if on_stage:
-        on_stage("review", len(texts))
-    print(f"[SubNexa AI] review pass: {len(texts)} lines", flush=True)
-    try:
-        reviewed = await asyncio.to_thread(
-            _generate_array, client, review_prompt, len(texts)
-        )
-    except Exception as error:
-        print(f"[SubNexa AI] review failed ({type(error).__name__}); checking safe fallback", flush=True)
-        # Keep a valid first-pass translation when review is unavailable.
-        # If the draft itself is visibly broken, propagate the error so the
-        # backend can retry/pause rather than save corrupt text to progress.
-        if any(_invalid(draft, original) for original, draft in zip(texts, drafts)):
-            raise
+    review_error = None
+    skip_reason = _review_skip_reason()
+    if skip_reason:
+        print(f"[SubNexa AI] review skipped ({skip_reason}); validating drafts", flush=True)
         if on_stage:
-            on_stage("review_fallback", len(texts))
-        print("[SubNexa AI] using validated draft (review unavailable)", flush=True)
-        return drafts
+            on_stage("review_skipped", len(texts))
+        reviewed = list(drafts)
+    else:
+        if on_stage:
+            on_stage("review", len(texts))
+        print(f"[SubNexa AI] review pass: {len(texts)} lines", flush=True)
+        try:
+            reviewed = await asyncio.to_thread(
+                _generate_array, client, review_prompt, len(texts)
+            )
+        except Exception as error:
+            # Keep the drafts so progress does not halt, but DO validate them:
+            # invalid drafts go through the normal repair path below instead of
+            # being saved unchecked.
+            review_error = error
+            print(f"[SubNexa AI] review failed ({type(error).__name__}); validating drafts", flush=True)
+            if on_stage:
+                on_stage("review_fallback", len(texts))
+            reviewed = list(drafts)
 
     reviewed = recover(reviewed)
 
@@ -643,8 +749,12 @@ ENGLISH AND DRAFT SINHALA PAIRS:
             on_stage("repair", len(bad_indexes))
         print(f"[SubNexa AI] repairing {len(bad_indexes)}/{len(texts)} invalid lines", flush=True)
         for i in bad_indexes:
+            reasons = _invalid_reasons(final[i], texts[i])
+            extra = ""
+            if "foreign_script" in reasons:
+                extra = f" scripts={'+'.join(_foreign_scripts(final[i], texts[i])) or '?'}"
             print(f"[SubNexa AI] invalid batch entry {i + 1}: "
-                  f"{','.join(_invalid_reasons(final[i], texts[i]))}", flush=True)
+                  f"{','.join(reasons)}{extra}", flush=True)
             expected = Counter(TOKEN_RE.findall(texts[i]))
             actual = Counter(TOKEN_RE.findall(final[i]))
             if expected != actual:
@@ -652,13 +762,16 @@ ENGLISH AND DRAFT SINHALA PAIRS:
                       f"expected={sum(expected.values())} actual={sum(actual.values())} "
                       f"missing={sum((expected - actual).values())} "
                       f"unexpected={sum((actual - expected).values())}", flush=True)
-        repair_pairs = [
-            {"english": texts[i], "draft_sinhala": _review_candidate(drafts[i], texts[i]),
-             "reviewed_sinhala": _review_candidate(reviewed[i], texts[i]),
-             "preserve_numbers": _SOURCE_NUMBER.findall(texts[i]),
-             "preserve_symbols": [c for c in texts[i] if c in _SOURCE_LITERALS]}
-            for i in bad_indexes
-        ]
+        repair_pairs = []
+        for i in bad_indexes:
+            pair = {"english": texts[i], "draft_sinhala": _review_candidate(drafts[i], texts[i]),
+                    "reviewed_sinhala": _review_candidate(reviewed[i], texts[i]),
+                    "preserve_numbers": _SOURCE_NUMBER.findall(texts[i]),
+                    "preserve_symbols": [c for c in texts[i] if c in _SOURCE_LITERALS]}
+            note = _foreign_fix_note(texts[i], drafts[i], reviewed[i])
+            if note:
+                pair["fix_note"] = note
+            repair_pairs.append(pair)
         repair_prompt = f"""You are a precise native Sri Lankan Sinhala subtitle editor.
 Repair ONLY these {len(bad_indexes)} visibly corrupted subtitle lines.
 The English source is the ground truth. Return fluent, accurately spelled,
@@ -687,6 +800,7 @@ Remove unexplained '#' symbols, markdown formatting, stray foreign scripts,
 and replacement glyphs. Preserve every literal number (including timestamps,
 percentages and decimal values) and meaningful source symbol exactly as supplied.
 Keep source foreign-script names verbatim; never invent new foreign letters.
+If an input entry has a "fix_note", follow it exactly.
 No explanations. Return ONLY a JSON array of exactly {len(bad_indexes)} strings.
 
 {context_note}
@@ -694,7 +808,7 @@ No explanations. Return ONLY a JSON array of exactly {len(bad_indexes)} strings.
 INPUT JSON:
 {json.dumps(repair_pairs, ensure_ascii=False)}
 """
-        repair_error = None
+        repair_error = review_error
         try:
             repaired = await asyncio.to_thread(
                 _generate_array, client, repair_prompt, len(bad_indexes)
@@ -711,6 +825,20 @@ INPUT JSON:
             if isinstance(line, str) and not _invalid(line, texts[index]):
                 final[index] = line
                 repaired_count += 1
+
+        # Cheap rescue before giving up on a line: drop ONE stray foreign word or
+        # letters from an otherwise good Sinhala line, then validate again.
+        repaired_by_index = dict(zip(bad_indexes, repaired))
+        for i in bad_indexes:
+            if not _invalid(final[i], texts[i]):
+                continue
+            for candidate in (repaired_by_index.get(i), reviewed[i], drafts[i]):
+                cleaned = _strip_stray_foreign(candidate, texts[i])
+                if cleaned and not _invalid(cleaned, texts[i]):
+                    final[i] = cleaned
+                    repaired_count += 1
+                    print(f"[SubNexa AI] entry {i + 1}: removed stray foreign-script text", flush=True)
+                    break
 
         # If model review/repair still fails for a specifically reviewed source
         # sentence, use its vetted Sinhala correction. Never accept invalid
