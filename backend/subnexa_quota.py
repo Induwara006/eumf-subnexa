@@ -19,6 +19,37 @@ class DailyQuotaExhausted(RuntimeError):
     code = 429
 
 
+def _valid_limit(entry):
+    return (isinstance(entry, dict)
+            and all(isinstance(entry.get(k), int) and not isinstance(entry.get(k), bool)
+                    and entry[k] > 0 for k in ('rpd', 'rpm')))
+
+
+def limit_entry(limits, project, model):
+    """RPD/RPM for one project and model.
+
+    A model without its own entry (for example a fallback model) reuses the
+    primary model's limits for the same project, so no extra setup is needed.
+    """
+    per_project = limits.get(project, {})
+    if not isinstance(per_project, dict):
+        return {}
+    entry = per_project.get(model, {})
+    if _valid_limit(entry):
+        return entry
+    primary = None
+    try:
+        from translator import MODEL as primary
+    except Exception:
+        pass
+    if primary and primary != model and _valid_limit(per_project.get(primary)):
+        return per_project[primary]
+    for other in per_project.values():
+        if _valid_limit(other):
+            return other
+    return entry if isinstance(entry, dict) else {}
+
+
 def configuration(model):
     from subnexa_account_pool import credentials
     keys = credentials('gemini')
@@ -32,7 +63,7 @@ def configuration(model):
     result = {}
     for position, (key, project) in enumerate(zip(keys, projects), 1):
         project = project.strip()
-        entry = limits.get(project, {}).get(model, {})
+        entry = limit_entry(limits, project, model)
         rpd = entry.get('rpd')
         rpm = entry.get('rpm')
         if any(not isinstance(x,int) or isinstance(x,bool) or x < 1 for x in (rpd,rpm)):
