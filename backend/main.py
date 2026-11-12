@@ -60,7 +60,22 @@ def _is_transient(error):
     details = str(error).upper()
     return any(marker in details for marker in (
         "503", "UNAVAILABLE", "HIGH DEMAND", "OVERLOADED",
-        "TEMPORARILY UNAVAILABLE", "SERVICE UNAVAILABLE", "DEADLINE EXCEEDED"
+        "TEMPORARILY UNAVAILABLE", "SERVICE UNAVAILABLE", "DEADLINE EXCEEDED",
+        "DEADLINE_EXCEEDED", "GATEWAY TIMEOUT"
+    ))
+
+
+def _is_network_error(error):
+    """Short-lived connection problems (timeouts, resets, SSL hiccups).
+
+    Retried with backoff, but they never split a batch: a dropped connection
+    says nothing about the size of the request.
+    """
+    details = f"{type(error).__name__} {error}".upper()
+    return any(marker in details for marker in (
+        "READERROR", "READTIMEOUT", "CONNECTERROR", "CONNECTTIMEOUT",
+        "REMOTEPROTOCOLERROR", "CONNECTION RESET", "CONNECTION ABORTED",
+        "SERVER DISCONNECTED", "TLSV1_ALERT", "SSL:", "TIMED OUT",
     ))
 
 
@@ -800,10 +815,10 @@ async def translate_srt_stream(
                         except Exception as error:
                             if _is_quota(error):
                                 raise  # Waiting cannot reset daily quota.
-                            if not _is_transient(error) or attempt == (MAX_TRANSIENT_ATTEMPTS - 1):
+                            if not (_is_transient(error) or _is_network_error(error)) or attempt == (MAX_TRANSIENT_ATTEMPTS - 1):
                                 raise
                             wait_seconds = min(45.0, (5 * (2 ** attempt)) + random.uniform(1.0, 3.5))
-                            print(f"[SubNexa] Gemini busy (503); retry {attempt + 1}/{MAX_TRANSIENT_ATTEMPTS} in "
+                            print(f"[SubNexa] Temporary AI/network error ({type(error).__name__}); retry {attempt + 1}/{MAX_TRANSIENT_ATTEMPTS} in "
                                   f"{wait_seconds:.1f}s", flush=True)
                             yield event("activity", stage="retry", count=len(active),
                                         seconds=int(wait_seconds))

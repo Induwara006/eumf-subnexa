@@ -327,6 +327,15 @@ class PoolModels:
                     from subnexa_quota import failure, publish
                     failure(error, quota_attempt)
                     publish(model)
+                text = str(error).upper()
+                if model != primary and ('NOT_FOUND' in text or '404' in text):
+                    # A fallback model Google no longer serves must not stop the job:
+                    # skip it on every key for an hour and carry on with the primary.
+                    for value in self.values:
+                        _cool(_key_id(value), model, 3600.0)
+                    print(f'[SubNexa] {self.provider}: fallback model {model} is not available; '
+                          f'skipping it for 1 hour', flush=True)
+                    continue
                 if not quota_error(error):
                     raise
                 seconds = _cooldown_seconds(error)
