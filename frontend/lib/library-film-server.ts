@@ -41,5 +41,6 @@ export const getPublicFilm = cache(async (id: string): Promise<FilmItem | null> 
     poster_url: row.poster_type ? `/library/items/${id}/poster` : null,
     download_url: `/library/items/${id}/download`,
     translated_by: typeof row.translated_by === "string" ? row.translated_by : null,
+    synopsis_si: typeof row.synopsis_si === "string" && row.synopsis_si.trim() ? row.synopsis_si : null,
   };
 });

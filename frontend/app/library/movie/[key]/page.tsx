@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import FilmDownloadPage from "@/components/FilmDownloadPage";
+import MovieDetails from "@/components/MovieDetails";
 import { getPublicFilm } from "@/lib/library-film-server";
 import { filmIdFromKey, filmPath } from "@/lib/library-slug";
 
@@ -39,5 +40,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Page({ params }: Props) {
   const { item } = await resolveFilm((await params).key);
-  return <FilmDownloadPage key={item.id} id={item.id} initialItem={item} />;
+  return (
+    <FilmDownloadPage key={item.id} id={item.id} initialItem={item}
+      details={<MovieDetails title={item.title} year={item.year} synopsisSi={item.synopsis_si} />} />
+  );
 }

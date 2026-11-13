@@ -1,7 +1,7 @@
 "use client";
 // SUBNEXA_FILM_PAGE_V1
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, Download, Film, Loader2 } from "lucide-react";
 
 import Header from "@/components/Header";
@@ -21,9 +21,10 @@ export type FilmItem = {
   poster_url: string | null;
   download_url: string;
   translated_by?: string | null;
+  synopsis_si?: string | null;
 };
 
-export default function FilmDownloadPage({ id, initialItem }: { id: string; initialItem?: FilmItem }) {
+export default function FilmDownloadPage({ id, initialItem, details }: { id: string; initialItem?: FilmItem; details?: ReactNode }) {
   const [fetchedItem, setItem] = useState<FilmItem | null>(null);
   const item = initialItem ?? fetchedItem;
   const [error, setError] = useState("");
@@ -106,6 +107,8 @@ export default function FilmDownloadPage({ id, initialItem }: { id: string; init
                 <span>{item.downloads} downloads</span>
                 {item.translated_by && <span>· Translated by {item.translated_by}</span>}
               </div>
+
+              {details}
 
               <Button asChild size="lg" className="gap-2 rounded-[5px]">
                 <a href={`/api${item.download_url}`} download>

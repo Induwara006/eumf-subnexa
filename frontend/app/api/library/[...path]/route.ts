@@ -7,7 +7,7 @@ export const maxDuration = 60;
 const BUCKET = "subnexa-library";
 const MAX = 2 * 1024 * 1024;
 type Context = { params: Promise<{ path: string[] }> };
-type Item = { content_sha256?: string | null; genre?: string | null; id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number; translated_by?: string | null; kind?: "movie" | "season"; season_key?: string | null; season_slug?: string | null; series_title?: string | null; season_number?: number | null; episode_number?: number | null; episode_count?: number; file_count?: number };
+type Item = { content_sha256?: string | null; genre?: string | null; id: string; title: string; year: string; language: string; format: "srt" | "ass"; poster_type: string; downloads: number; translated_by?: string | null; kind?: "movie" | "season"; season_key?: string | null; season_slug?: string | null; series_title?: string | null; season_number?: number | null; episode_number?: number | null; episode_count?: number; file_count?: number; synopsis_si?: string | null };
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -469,12 +469,26 @@ async function handle(request: Request, context: Context) {
       await admin(request);
       const item = await getItem(path[1]);
       const body = await request.json().catch(() => null);
-      const title = body && typeof body.title === "string" ? body.title.trim() : "";
-      if (!title || title.length > 120 || /[\x00-\x1f\x7f]/.test(title)) throw new HttpError(400, "Title must be 1-120 characters with no control characters.");
+      const input: Record<string, unknown> = body && typeof body === "object" ? body : {};
+      const patch: { title?: string; synopsis_si?: string | null } = {};
+      if ("title" in input) {
+        const title = typeof input.title === "string" ? input.title.trim() : "";
+        if (!title || title.length > 120 || /[\x00-\x1f\x7f]/.test(title)) throw new HttpError(400, "Title must be 1-120 characters with no control characters.");
+        patch.title = title;
+      }
+      // SUBNEXA_SYNOPSIS_SI_V1: optional Sinhala synopsis for the film page. Empty text clears it.
+      if ("synopsis_si" in input) {
+        const raw = input.synopsis_si;
+        if (typeof raw !== "string") throw new HttpError(400, "Synopsis must be text.");
+        const text = raw.trim();
+        if (text.length > 1200 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)) throw new HttpError(400, "Synopsis must be 1200 characters or fewer.");
+        patch.synopsis_si = text || null;
+      }
+      if (!Object.keys(patch).length) throw new HttpError(400, "Nothing to update.");
       await sb(`/rest/v1/subnexa_library_items?id=eq.${item.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json", "Prefer": "return=minimal" }, body: JSON.stringify({ title })
+        method: "PATCH", headers: { "Content-Type": "application/json", "Prefer": "return=minimal" }, body: JSON.stringify(patch)
       });
-      return json({ ok: true, id: item.id, title });
+      return json({ ok: true, id: item.id, ...patch });
     }
     if (request.method === "DELETE" && path.length === 2) {
       await admin(request);
@@ -486,7 +500,10 @@ async function handle(request: Request, context: Context) {
       return json({ deleted: item.id });
     }
     /* SUBNEXA_FILM_PAGE_V1: public details of one library item (used by the film page). */
-    if (request.method === "GET" && path.length === 2) return json({ item: publicItem(await getItem(path[1])) });
+    if (request.method === "GET" && path.length === 2) {
+      const found = await getItem(path[1]);
+      return json({ item: { ...publicItem(found), synopsis_si: typeof found.synopsis_si === "string" && found.synopsis_si.trim() ? found.synopsis_si : null } });
+    }
     if (request.method !== "GET" || !["poster", "download"].includes(path[2])) throw new HttpError(404, "Not found.");
     const item = await getItem(path[1]);
     const isPoster = path[2] === "poster";

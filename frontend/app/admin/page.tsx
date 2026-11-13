@@ -4,7 +4,7 @@
 // SUBNEXA_ADMIN_DASHBOARD_V3 (poster picker: TMDB, drag & drop, paste, link)
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, Eye, ImagePlus, Loader2, Lock, Pencil, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Eye, ImagePlus, Loader2, Lock, Pencil, Search, Trash2, X, FileText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -117,6 +117,7 @@ export default function AdminDashboard() {
   const [pickerBusy, setPickerBusy] = useState(false);
   const [pickerError, setPickerError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [detailsFor, setDetailsFor] = useState<{ item: LibItem; value: string } | null>(null);
 
   function lock(message = "") {
     clearAdminSession();
@@ -283,6 +284,32 @@ export default function AdminDashboard() {
       if (!response.ok) throw new Error(await readError(response, "Rename failed."));
       setRenaming(null);
       setNotice({ ok: true, text: `Renamed to "${title}".` });
+      await loadLibrary();
+      window.dispatchEvent(new Event("subnexa-library-updated"));
+    } catch (error) { fail(error); setBusy(false); }
+  }
+
+  async function openDetails(item: LibItem) {
+    setBusy(true); setNotice(null);
+    try {
+      const response = await call(`/api/library/items/${item.id}`);
+      if (!response.ok) throw new Error(await readError(response, "Could not load the details."));
+      const data = await response.json().catch(() => ({}));
+      setDetailsFor({ item, value: typeof data?.item?.synopsis_si === "string" ? data.item.synopsis_si : "" });
+    } catch (error) { fail(error); } finally { setBusy(false); }
+  }
+
+  async function saveDetails(item: LibItem, value: string) {
+    const synopsis_si = value.trim();
+    if (synopsis_si.length > 1200) { setNotice({ ok: false, text: "Sinhala synopsis must be 1200 characters or fewer." }); return; }
+    setBusy(true); setNotice(null);
+    try {
+      const response = await call(`/api/library/items/${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ synopsis_si }),
+      });
+      if (!response.ok) throw new Error(await readError(response, "Could not save the details."));
+      setDetailsFor(null);
+      setNotice({ ok: true, text: `Details saved for ${item.title}.` });
       await loadLibrary();
       window.dispatchEvent(new Event("subnexa-library-updated"));
     } catch (error) { fail(error); setBusy(false); }
@@ -502,8 +529,9 @@ export default function AdminDashboard() {
                       ) : <p className="truncate text-sm font-semibold" title={item.title}>{item.title}</p>}
                       <p className="text-xs text-body">{[item.year, item.format.toUpperCase(), `${item.downloads} downloads`].filter(Boolean).join(" · ")}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" disabled={busy} className="gap-1.5" onClick={() => setRenaming({ id: String(item.id), value: item.title })}><Pencil className="size-3.5" />Rename</Button>
+                      <Button size="sm" variant="outline" disabled={busy} className="gap-1.5" onClick={() => void openDetails(item)}><FileText className="size-3.5" />Edit details</Button>
                       <Button size="sm" variant="outline" disabled={busy} className="gap-1.5" onClick={() => openPicker(item)}><ImagePlus className="size-3.5" />{item.poster_url ? "Change poster" : "Add poster"}</Button>
                       <Button size="icon" variant="outline" disabled={busy} className="size-8 shrink-0" aria-label={`Delete ${item.title}`} onClick={() => void deleteItem(item)}><Trash2 className="size-3.5" /></Button>
                     </div>
@@ -568,6 +596,27 @@ export default function AdminDashboard() {
             {pickerError && <p role="alert" className="mt-2 text-xs text-destructive">{pickerError}</p>}
             <p className="mt-3 text-[10px] text-content-tertiary">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
           </div>
+        </div>
+      )}
+
+      {unlocked && detailsFor && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 p-4" role="presentation">
+          <form role="dialog" aria-modal="true" aria-label="Edit details"
+            className="max-h-[90vh] w-full max-w-lg space-y-3 overflow-y-auto rounded-xl border border-input bg-surface-primary p-5 shadow-2xl"
+            onKeyDown={e => { if (e.key === "Escape") setDetailsFor(null); }}
+            onSubmit={e => { e.preventDefault(); void saveDetails(detailsFor.item, detailsFor.value); }}>
+            <h2 className="text-base font-semibold">Edit details: {detailsFor.item.title}</h2>
+            <p className="text-xs text-body">Type a short Sinhala synopsis. It is shown on the movie page under “Movie details”. Leave it empty to hide it.</p>
+            <textarea aria-label="Sinhala synopsis" lang="si" autoFocus maxLength={1200} rows={7}
+              placeholder="සිංහලෙන් කෙටි හැඳින්වීමක් ටයිප් කරන්න..."
+              value={detailsFor.value} onChange={e => setDetailsFor({ item: detailsFor.item, value: e.target.value })}
+              className="w-full rounded-md border border-border bg-ink/[0.04] p-2 text-sm leading-relaxed" />
+            <p className="text-right text-[10px] text-content-tertiary">{detailsFor.value.length} / 1200</p>
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={busy}>Save</Button>
+              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setDetailsFor(null)}>Cancel</Button>
+            </div>
+          </form>
         </div>
       )}
 
