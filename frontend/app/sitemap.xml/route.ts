@@ -6,7 +6,16 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 const ORIGIN = "https://subnexa.lk";
 type Item = { id: string; title: string; year?: string | null; kind?: string;
-  season_slug?: string | null; season_key?: string | null };
+  season_slug?: string | null; season_key?: string | null;
+  updated_at?: string | null };
+// Optional <lastmod>: only used when the RPC returns a valid, non-future updated_at.
+// If the field is missing/invalid the URL is written exactly as before (no lastmod).
+const lastmodOf = (item: Item): string | undefined => {
+  if (typeof item.updated_at !== "string") return undefined;
+  const t = Date.parse(item.updated_at);
+  if (!Number.isFinite(t) || t > Date.now() + 86400000) return undefined;
+  return new Date(t).toISOString().slice(0, 10);
+};
 const escapeXml = (s: string) => s.replace(/[<>&"']/g, c =>
   ({"<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;", "'":"&apos;"}[c]!));
 
@@ -16,7 +25,9 @@ export async function GET() {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!base || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(base) || !key)
       throw new Error("Sitemap database configuration missing");
-    const urls = new Set<string>([ORIGIN + "/", ORIGIN + "/library"]);
+    const urls = new Map<string, string | undefined>([
+      [ORIGIN + "/", undefined], [ORIGIN + "/library", undefined]
+    ]);
     const signal = AbortSignal.timeout(45000);
     let offset = 0;
     let expectedTotal: number | undefined;
@@ -53,7 +64,7 @@ export async function GET() {
             throw new Error("Invalid movie ID");
           path = filmPath(item);
         }
-        urls.add(ORIGIN + path);
+        urls.set(ORIGIN + path, lastmodOf(item));
       }
       offset += data.items.length;
       if (offset === data.total) break;
@@ -61,7 +72,8 @@ export async function GET() {
     }
     const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
       '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-      [...urls].map(url => `  <url><loc>${escapeXml(url)}</loc></url>`).join("\n") + '\n</urlset>\n';
+      [...urls].map(([url, lastmod]) => `  <url><loc>${escapeXml(url)}</loc>` +
+        (lastmod ? `<lastmod>${lastmod}</lastmod>` : "") + `</url>`).join("\n") + '\n</urlset>\n';
     return new Response(xml, { headers: {
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": "public, max-age=0, s-maxage=900",
