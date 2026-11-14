@@ -34,7 +34,7 @@ const groups = [
       { title: "Guide", description: "A quick tour of the workflow.", href: "/guide" },
       { title: "Fair use", description: "What you can translate and share.", href: "/guide" },
       { title: "Community library", description: "Browse films and series.", href: "/library" },
-      { title: "Request a subtitle", description: "Ask the community for a title.", href: "/library" },
+      { title: "Request a subtitle", description: "Ask the community for a title.", href: "/library#community-request" },
     ],
   },
 ] as const;

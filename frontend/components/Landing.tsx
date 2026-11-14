@@ -49,6 +49,7 @@ export default function Landing() {
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[900px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(232,232,238,0.12),transparent_70%)]" />
 
         <section id="top" className="relative mx-auto w-full max-w-[1200px] px-5 pb-20 pt-36 sm:px-8 sm:pt-44">
+          <span id="sn-platform" className="absolute left-0 top-0 scroll-mt-24" aria-hidden="true" />
           <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-[5px]">
             <DriftWall
               grayscale

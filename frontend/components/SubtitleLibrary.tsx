@@ -415,7 +415,9 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
   const shownItems = items;
   return (
     <div className="space-y-4">
-      <CommunityForm kind="request" />
+      <div id="community-request" className="scroll-mt-24">
+        <CommunityForm kind="request" />
+      </div>
       {!seasonKey && <CommunitySubtitleUpload />}
       {seasonKey && seasonInfo && <div className="rounded-[5px] border border-border bg-[var(--next-gray-200)] p-5">
         <p className="text-xs uppercase tracking-widest text-primary">TV Series {seasonInfo.year && `· ${seasonInfo.year}`}</p>
