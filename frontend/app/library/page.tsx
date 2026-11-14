@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LibraryBrowser } from "../../components/SubtitleLibrary";
 import Header from "@/components/Header";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
 import SlideTextButton from "@/components/ui/slide-text-button";
+import { filmPath } from "@/lib/library-slug";
+import { getLatest } from "@/lib/library-public-server";
+
+export const revalidate = 600;
 
 export const metadata: Metadata = {
-  title: "Subtitle library — SubNexa",
-  description: "Search and download ready-made Sinhala subtitles.",
+  title: "Sinhala Subtitles Download | SubNexa Library",
+  description:
+    "Download free Sinhala subtitles (SRT) for movies and TV series. Search by title and download instantly. No sign-in needed.",
+  alternates: { canonical: "https://subnexa.lk/library" },
 };
 
 const API = (
@@ -15,7 +22,9 @@ const API = (
   (process.env.NODE_ENV === "production" ? "/subnexa-api" : "http://localhost:8000")
 ).replace(/\/$/, "");
 
-export default function LibraryPage() {
+export default async function LibraryPage() {
+  const latest = await getLatest();
+
   return (
     <div className="dark framer-landing relative isolate min-h-screen overflow-hidden bg-background text-ink">
       <Header overlay showThemeToggle={false} />
@@ -43,6 +52,28 @@ export default function LibraryPage() {
             <LibraryBrowser api={API} autoFocus />
           </div>
         </Reveal>
+
+        {latest.length > 0 && (
+          <section className="mt-12" aria-label="Latest Sinhala subtitles">
+            <h2 className="text-xl font-semibold">Latest Sinhala subtitles</h2>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {latest.map((i) => (
+                <li key={i.id}>
+                  <Link
+                    className="text-body underline-offset-4 hover:underline"
+                    href={
+                      i.kind === "season"
+                        ? `/library/tv-series/${i.season_slug || i.season_key}`
+                        : filmPath(i as Parameters<typeof filmPath>[0])
+                    }
+                  >
+                    {i.title} Sinhala Subtitles
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </main>
 
       <SiteFooter />
