@@ -8,6 +8,7 @@ import json
 
 from glossary_engine import parse_glossary, glossary_fingerprint, preview_glossary
 from subtitle_export import render_subtitles, download_filename
+from subtitle_decode import decode_subtitle_bytes
 from urllib.parse import quote
 
 
@@ -203,11 +204,13 @@ async def upload_subtitle(file: UploadFile = File(...)):
         )
 
     try:
-        subtitle_text = content.decode("utf-8-sig")
-    except UnicodeDecodeError:
+        subtitle_text, source_encoding = decode_subtitle_bytes(content)
+        if source_encoding.lower() not in ("utf-8", "utf-8-sig"):
+            print(f"[SubNexa] Subtitle decoded as {source_encoding}")
+    except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Please upload a UTF-8 encoded SRT file."
+            detail="The subtitle file is empty."
         )
 
     try:
@@ -325,10 +328,12 @@ async def translate_srt(
     await asyncio.to_thread(account, "file", hashlib.sha256(content + style.encode() + glossary.encode()).hexdigest())
 
     try:
-        subtitle_text = content.decode("utf-8-sig")
+        subtitle_text, source_encoding = decode_subtitle_bytes(content)
+        if source_encoding.lower() not in ("utf-8", "utf-8-sig"):
+            print(f"[SubNexa] Subtitle decoded as {source_encoding}")
         subtitles = list(srt.parse(subtitle_text))
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="SRT must be UTF-8 encoded.")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="The subtitle file is empty.")
     except srt.SRTParseError:
         raise HTTPException(status_code=400, detail="Invalid SRT format.")
 
@@ -567,12 +572,14 @@ async def translate_srt_stream(
         )
 
     try:
-        subtitle_text = content.decode("utf-8-sig")
+        subtitle_text, source_encoding = decode_subtitle_bytes(content)
+        if source_encoding.lower() not in ("utf-8", "utf-8-sig"):
+            print(f"[SubNexa] Subtitle decoded as {source_encoding}")
         subtitles = list(srt.parse(subtitle_text))
-    except UnicodeDecodeError:
+    except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="SRT must be UTF-8 encoded."
+            detail="The subtitle file is empty."
         )
     except srt.SRTParseError:
         raise HTTPException(

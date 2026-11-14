@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 import { LibraryBrowser } from "@/components/SubtitleLibrary";
 import { getSeason } from "@/lib/library-public-server";
 
-export const revalidate = 600;
+export const dynamic = "force-dynamic";
 
 const KEY_RE = /^[a-z0-9][a-z0-9-]{0,199}$/;
 
