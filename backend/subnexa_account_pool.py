@@ -133,6 +133,22 @@ def _cooldown_seconds(error):
     return random.uniform(20.0, 35.0)      # plain 429: per-minute bucket
 
 
+def _tell_ui(stage, value):
+    """Send a stage event to the open translation stream (no-op outside a job).
+
+    Never raises: the stream's callback raises 'Translation control requested'
+    for rate_wait events after Pause/Stop, and translator.py swallows any error
+    from the review/repair passes by falling back to unreviewed drafts. Letting
+    that propagate from here would silently lower quality, so Pause/Stop is
+    still honoured at the next batch boundary as before.
+    """
+    try:
+        from subnexa_usage import emit
+        emit(stage, value)
+    except Exception:
+        pass
+
+
 def pool_status(provider='gemini', model='default'):
     """Small helper for dashboards: how many keys are ready right now."""
     try:
@@ -280,9 +296,13 @@ class PoolModels:
         rpm = _rpm_limit()
         deadline = time.monotonic() + _max_wait()
         announced = False
+        waiting = False
 
         while True:
             idx, model, wait = self._pick(models, rpm)
+            if idx is not None and waiting:
+                waiting = False
+                _tell_ui('rate_wait', 0)          # a key is free again: clear the cooldown notice
 
             if idx is None:
                 remaining = deadline - time.monotonic()
@@ -294,7 +314,10 @@ class PoolModels:
                     print(f'[SubNexa] {self.provider}: all {total} accounts busy; '
                           f'waiting ~{wait:.0f}s for the first one to free up', flush=True)
                     announced = True
-                time.sleep(min(wait, remaining) + random.uniform(0.05, 0.4))
+                pause = min(wait, remaining) + random.uniform(0.05, 0.4)
+                waiting = True
+                _tell_ui('rate_wait', int(pause) + 1)    # shown in the progress card as a countdown
+                time.sleep(pause)
                 continue
 
             key = self.values[idx]
