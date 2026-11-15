@@ -59,7 +59,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FrioSelect } from "@/components/ui/frio-dropdown";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1111,7 +1111,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
     if (!cues.length || !visibleIndices.length) {
       return (
         <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-[5px] border border-dashed border-border/60 bg-ink/[0.03] p-6 text-center">
-          <span className="grid size-12 place-items-center rounded-full border border-border bg-card text-muted-foreground">
+          <span className="grid size-12 place-items-center rounded-full border border-border text-muted-foreground">
             <FileText className="size-5" />
           </span>
           <h3 className="mt-3 text-sm font-medium">
@@ -1253,7 +1253,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Overview</p>
-              <h2 className="mt-2 text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.05]">Welcome back, {firstName}</h2>
+              <h2 className="font-display mt-2 text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.05]">Welcome back, {firstName}</h2>
             </div>
             <span className="text-[11px] text-content-tertiary">{statusTitle}</span>
           </div>
@@ -1272,7 +1272,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
             ))}
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-            <Card className="border-border bg-card">
+            <Card className="border-border">
               <CardHeader className="flex flex-row items-start justify-between space-y-0">
                 <div>
                   <CardTitle className="text-sm">Translation activity</CardTitle>
@@ -1284,7 +1284,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 <StudioPulse data={progressHistory} total={totalCount} translated={translatedCount} />
               </CardContent>
             </Card>
-            <Card className="border-border bg-card">
+            <Card className="border-border">
               <CardHeader>
                 <CardTitle className="text-sm">Recent activity</CardTitle>
                 <CardDescription className="text-xs">The latest studio events.</CardDescription>
@@ -1312,7 +1312,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
             </Card>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Card className="border-border bg-card">
+            <Card className="border-border">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm">Active project</CardTitle>
                 <Film className="size-4 text-content-tertiary" />
@@ -1326,7 +1326,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                 <p className="text-[11px] text-muted-foreground">{file ? `${totalCount || "—"} cues · ${translating ? "translating now" : done ? "ready to download" : "ready to start"}` : "Upload an SRT to start a project."}</p>
               </CardContent>
             </Card>
-            <Card className="border-border bg-card">
+            <Card className="border-border">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm">Pipeline</CardTitle>
                 <Cpu className="size-4 text-content-tertiary" />
@@ -1352,7 +1352,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="h-6 w-1 rounded-full bg-primary" />
-              <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.05]">Workspace</h2>
+              <h2 className="font-display text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.05]">Workspace</h2>
               <Badge className="h-5 bg-primary px-2 text-[9px] font-bold tracking-[0.14em]">{modelChoice === "subnexa_11" ? "1.1" : modelChoice === "subnexa_pro" ? "PRO" : "0.2"}</Badge>
             </div>
             <p className="max-w-xl text-[15px] leading-relaxed text-body">
@@ -1392,7 +1392,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
 
         <div className="mt-8 grid items-start gap-6 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
           <div className="min-w-0 space-y-6">
-            <Card id="sn-setup" className="scroll-mt-36 border-border bg-card">
+            <Card id="sn-setup" className="scroll-mt-36 border-border">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1440,7 +1440,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               </CardContent>
             </Card>
 
-            <Card id="sn-style" className="scroll-mt-36 border-border bg-card">
+            <Card id="sn-style" className="scroll-mt-36 border-border">
               <CardHeader>
                 <CardTitle className="text-sm">Translation settings</CardTitle>
                 <CardDescription className="mt-1 text-xs">Choose how the Sinhala dialogue should read.</CardDescription>
@@ -1584,7 +1584,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
           </div>
 
           <div className="min-w-0 space-y-6">
-            <Card className="border-border bg-card">
+            <Card className="border-border">
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
@@ -1732,7 +1732,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               <CommunityForm kind="report" title={file?.name || ""} />
               {readyDownload && <Button variant="outline" onClick={downloadBilingual}>Download Sinhala + English SRT</Button>}
             </div>
-            <Card id="sn-studio" className="scroll-mt-36 border-border bg-card">
+            <Card id="sn-studio" className="scroll-mt-36 border-border">
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -1886,7 +1886,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
         </div>
 
         <span id="sn-features" className="block scroll-mt-24" aria-hidden />
-        <Card id="sn-glossary" className="mt-5 scroll-mt-24 border-border bg-card">
+        <Card id="sn-glossary" className="mt-5 scroll-mt-24 border-border">
           <Collapsible open={glossaryOpen} onOpenChange={setGlossaryOpen}>
             <CollapsibleTrigger asChild>
               <button type="button" className="flex w-full items-center justify-between gap-3 px-6 py-5 text-left">
@@ -1945,17 +1945,18 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[11px]">Rule</Label>
-                    <Select
+                    <FrioSelect
                       value={glossaryDraft.mode}
                       disabled={loading}
-                      onValueChange={value => setGlossaryDraft({ ...glossaryDraft, mode: value as GlossaryMode })}
-                    >
-                      <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="never_translate">Never translate</SelectItem>
-                        <SelectItem value="custom_translation">Custom Sinhala translation</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      onChange={value => setGlossaryDraft({ ...glossaryDraft, mode: value as GlossaryMode })}
+                      ariaLabel="Glossary rule"
+                      className="w-full"
+                      triggerClassName="h-9 w-full justify-between"
+                      options={[
+                        { value: "never_translate", label: "Never translate" },
+                        { value: "custom_translation", label: "Custom Sinhala translation" },
+                      ]}
+                    />
                   </div>
                   {glossaryDraft.mode === "custom_translation" && (
                     <div className="space-y-1.5 sm:col-span-2">

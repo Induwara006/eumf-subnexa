@@ -27,7 +27,7 @@ export default function GuidePage() {
       <main className="relative mx-auto w-full max-w-[1200px] px-5 pb-24 pt-36 sm:px-8 sm:pt-44">
         <Reveal className="max-w-3xl">
           <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-content-tertiary">Guide</p>
-          <h1 className="mt-4 text-[clamp(2.6rem,6vw,4.5rem)] font-bold leading-[0.96] tracking-[-0.045em]">
+          <h1 className="font-display mt-4 text-[clamp(2.6rem,6vw,4.5rem)] font-bold leading-[0.96] tracking-[-0.045em]">
             How to use SubNexa
           </h1>
           <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-body">
@@ -38,7 +38,7 @@ export default function GuidePage() {
         <div className="mt-12 grid gap-4 lg:grid-cols-2">
           {steps.map((step, index) => (
             <Reveal key={step} delay={index * 0.06}>
-              <div className="h-full rounded-[5px] border border-border bg-[var(--next-gray-200)] p-6">
+              <div className="h-full sn-card rounded-2xl p-6">
                 <span className="font-mono text-[12px] text-content-tertiary">Step {String(index + 1).padStart(2, "0")}</span>
                 <p className="mt-3 text-[16px] leading-relaxed text-body">{step}</p>
               </div>
@@ -48,7 +48,7 @@ export default function GuidePage() {
 
         <div className="mt-12 grid gap-4 md:grid-cols-2">
           <Reveal>
-            <div className="h-full rounded-[5px] border border-border bg-[var(--next-gray-200)] p-6">
+            <div className="h-full sn-card rounded-2xl p-6">
               <h2 className="text-xl font-semibold">Library copies</h2>
               <p className="mt-3 text-[15px] leading-relaxed text-body">
                 Completed translations are added to the public library with your display name. Later editor changes are included in your download, but do not update that library copy.
@@ -56,7 +56,7 @@ export default function GuidePage() {
             </div>
           </Reveal>
           <Reveal delay={0.08}>
-            <div className="h-full rounded-[5px] border border-border bg-[var(--next-gray-200)] p-6">
+            <div className="h-full sn-card rounded-2xl p-6">
               <h2 className="text-xl font-semibold">Daily limits</h2>
               <p className="mt-3 text-[15px] leading-relaxed text-body">
                 Daily limits are shared across your devices. If you reach your limit, your progress stays saved and the message shows when you can continue. Use Request a subtitle or Report a translation issue to send feedback. Requests are not a promise of delivery.
@@ -66,8 +66,8 @@ export default function GuidePage() {
         </div>
 
         <Reveal className="mt-12">
-          <div className="rounded-[5px] border border-border bg-[var(--next-gray-200)] p-6 sm:p-10">
-            <h2 className="max-w-2xl text-[clamp(1.8rem,3.5vw,2.6rem)] font-bold leading-[1.05]">
+          <div className="sn-card rounded-2xl p-6 sm:p-10">
+            <h2 className="font-display max-w-2xl text-[clamp(1.8rem,3.5vw,2.6rem)] font-bold leading-[1.05]">
               Ready to translate your first subtitle?
             </h2>
             <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-body">

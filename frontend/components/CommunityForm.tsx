@@ -24,7 +24,7 @@ export default function CommunityForm({kind,title=""}:{kind:"request"|"report";t
   finally{setBusy(false);}
  }
  return (
-  <section className="w-full rounded-[5px] border border-border bg-[var(--next-gray-200)] p-5">
+  <section className="w-full sn-card rounded-2xl p-5">
    <div>
     <h3 className="text-sm font-semibold text-ink">{label}</h3>
     <p className="mt-1 max-w-xl text-xs leading-relaxed text-body">{description}</p>

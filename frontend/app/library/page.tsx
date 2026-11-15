@@ -33,7 +33,7 @@ export default async function LibraryPage() {
       <main className="relative mx-auto w-full max-w-[1200px] px-5 pb-24 pt-36 sm:px-8 sm:pt-44">
         <Reveal className="max-w-3xl">
           <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-content-tertiary">The library</p>
-          <h1 className="mt-4 text-[clamp(2.6rem,6vw,4.5rem)] font-bold leading-[0.96] tracking-[-0.045em]">
+          <h1 className="font-display mt-4 text-[clamp(2.6rem,6vw,4.5rem)] font-bold leading-[0.96] tracking-[-0.045em]">
             Sinhala subtitles,
             <br />
             <span className="text-body">ready when you are.</span>
@@ -48,7 +48,7 @@ export default async function LibraryPage() {
         </Reveal>
 
         <Reveal className="mt-12" delay={0.1}>
-          <div id="library" className="rounded-[5px] border border-border bg-[var(--next-gray-200)] p-4 sm:p-6">
+          <div id="library" className="sn-card rounded-2xl p-4 sm:p-6">
             <LibraryBrowser api={API} autoFocus />
           </div>
         </Reveal>
