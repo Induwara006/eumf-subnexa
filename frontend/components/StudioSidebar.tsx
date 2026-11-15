@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
@@ -19,6 +19,7 @@ import {
   Settings,
   ShieldCheck,
   Upload,
+  User,
   X,
 } from "lucide-react";
 
@@ -127,6 +128,20 @@ export default function StudioSidebar({
 }: StudioSidebarProps) {
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Admins get the Admin dashboard button, everyone else gets Profile. The backend
+  // reports is_admin on /fair-use; this only chooses which button to show, the
+  // admin pages are still protected on the server.
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsAdmin(false);
+    fetch(`${API}/fair-use`, { credentials: "include", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => { if (!cancelled) setIsAdmin(data?.is_admin === true); })
+      .catch(() => { /* keep the Profile button if the check fails */ });
+    return () => { cancelled = true; };
+  }, [email]);
 
   const primary: NavItem[] = [
     { label: "Home", href: "/", icon: Home },
@@ -274,13 +289,23 @@ export default function StudioSidebar({
             </div>
           </div>
           <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-            <Link
-              href="/admin"
-              onClick={onClose}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-body transition-colors hover:bg-ink/[0.05] hover:text-ink"
-            >
-              <ShieldCheck className="size-3.5" />Admin
-            </Link>
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                onClick={onClose}
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-body transition-colors hover:bg-ink/[0.05] hover:text-ink"
+              >
+                <ShieldCheck className="size-3.5" />Admin
+              </Link>
+            ) : (
+              <Link
+                href="/profile"
+                onClick={onClose}
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-body transition-colors hover:bg-ink/[0.05] hover:text-ink"
+              >
+                <User className="size-3.5" />Profile
+              </Link>
+            )}
             <button
               type="button"
               onClick={logout}
