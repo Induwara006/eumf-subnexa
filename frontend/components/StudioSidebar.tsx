@@ -8,7 +8,6 @@ import {
   BookOpen,
   Captions,
   ChevronDown,
-  ExternalLink,
   Folder,
   Home,
   Languages,
@@ -47,7 +46,8 @@ type StudioSidebarProps = {
   email?: string;
   activeHref?: string;
   counts?: { cues?: number; glossary?: number };
-  onOpenLibrary: () => void;
+  // Kept optional so existing callers still compile; Library is now a normal page link.
+  onOpenLibrary?: () => void;
 };
 
 function NavRow({
@@ -124,7 +124,6 @@ export default function StudioSidebar({
   email,
   activeHref = "#sn-overview",
   counts,
-  onOpenLibrary,
 }: StudioSidebarProps) {
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -144,7 +143,7 @@ export default function StudioSidebar({
   }, [email]);
 
   const primary: NavItem[] = [
-    { label: "Home", href: "/", icon: Home },
+    { label: "Home", href: "/welcome", icon: Home },
     { label: "Dashboard", href: "#sn-overview", icon: BarChart3 },
     { label: "Projects", href: "#sn-studio", icon: Rows3 },
   ];
@@ -157,10 +156,9 @@ export default function StudioSidebar({
   ];
 
   const secondary: NavItem[] = [
-    { label: "Library", icon: PieChart, onClick: onOpenLibrary },
+    { label: "Library", href: "/library", icon: PieChart },
     { label: "Settings", href: "#sn-style", icon: Settings },
-    { label: "Support", href: "/guide", icon: MessageCircle, online: true },
-    { label: "Open in browser", href: "/library", icon: ExternalLink },
+    { label: "Support", href: "/support", icon: MessageCircle, online: true },
   ];
 
   const workspaceActive = workspace.some((item) => item.href === activeHref);

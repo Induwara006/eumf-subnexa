@@ -148,6 +148,19 @@ function validId(id: string) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new HttpError(404, "Subtitle not found.");
   return id;
 }
+// Validates a support FAQ submitted from the admin page.
+function cleanFaq(body: unknown) {
+  const b = body as { question?: unknown; answer?: unknown; sort_order?: unknown; published?: unknown } | null;
+  if (!b || typeof b.question !== "string" || typeof b.answer !== "string") throw new HttpError(400, "Question and answer are required.");
+  const question = b.question.trim();
+  const answer = b.answer.trim();
+  if (question.length < 3 || question.length > 200) throw new HttpError(400, "Question must be 3 to 200 characters.");
+  if (answer.length < 1 || answer.length > 2000) throw new HttpError(400, "Answer must be 1 to 2000 characters.");
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(question + answer)) throw new HttpError(400, "Text contains invalid characters.");
+  const order = Number(b.sort_order ?? 0);
+  if (!Number.isInteger(order) || order < 0 || order > 9999) throw new HttpError(400, "Order must be a whole number from 0 to 9999.");
+  return { question, answer, sort_order: order, published: b.published !== false };
+}
 async function getItem(id: string): Promise<Item> {
   const rows = await (await sb(`/rest/v1/subnexa_library_items?id=eq.${validId(id)}&select=*&limit=1`)).json() as Item[];
   if (!rows.length) throw new HttpError(404, "Subtitle not found.");
@@ -337,6 +350,29 @@ async function handle(request: Request, context: Context) {
       if (!body || !["pending","in_progress","resolved","rejected"].includes(body.status) || typeof body.admin_note !== "string" || body.admin_note.length > 1000) throw new HttpError(400,"Invalid review update.");
       const updated = await sb(`/rest/v1/subnexa_issue_reviews?id=eq.${validId(path[2])}`, {method:"PATCH",headers:{"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify({status:body.status,admin_note:body.admin_note,updated_at:new Date().toISOString()})});
       return json({items:await updated.json()});
+    }
+    /* SUBNEXA_FAQ_ADMIN_V1: support FAQ managed by library admins (public page reads the table directly). */
+    if (route === "admin/faqs" && request.method === "GET") {
+      await admin(request);
+      const rows = await (await sb("/rest/v1/subnexa_faqs?select=id,question,answer,sort_order,published&order=sort_order.asc,created_at.asc&limit=200")).json();
+      return json({items: rows});
+    }
+    if (route === "admin/faqs" && request.method === "POST") {
+      await admin(request);
+      const faq = cleanFaq(await request.json().catch(() => null));
+      const created = await sb("/rest/v1/subnexa_faqs", {method:"POST",headers:{"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(faq)});
+      return json({items: await created.json()});
+    }
+    if (path[0] === "admin" && path[1] === "faqs" && path.length === 3 && request.method === "PATCH") {
+      await admin(request);
+      const faq = cleanFaq(await request.json().catch(() => null));
+      const updated = await sb(`/rest/v1/subnexa_faqs?id=eq.${validId(path[2])}`, {method:"PATCH",headers:{"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify({...faq, updated_at:new Date().toISOString()})});
+      return json({items: await updated.json()});
+    }
+    if (path[0] === "admin" && path[1] === "faqs" && path.length === 3 && request.method === "DELETE") {
+      await admin(request);
+      await sb(`/rest/v1/subnexa_faqs?id=eq.${validId(path[2])}`, {method:"DELETE"});
+      return json({deleted: true});
     }
     if (route === "community/queue" && request.method === "GET") {
       await admin(request);
