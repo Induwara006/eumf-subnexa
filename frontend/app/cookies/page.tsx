@@ -62,7 +62,7 @@ export default function CookiePolicyPage() {
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
             subnexa.lk
           </p>
-          <h1 className="mt-3 text-4xl tracking-tight sm:text-5xl">Cookie Policy</h1>
+          <h1 className="font-display mt-3 text-4xl tracking-tight sm:text-5xl">Cookie Policy</h1>
           <p className="mt-4 text-sm text-content-tertiary">
             Effective date: November 5, 2026
           </p>

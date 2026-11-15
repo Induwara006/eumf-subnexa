@@ -9,6 +9,7 @@ import { ArrowLeft, Check, Eye, ImagePlus, Loader2, Lock, Pencil, Search, Trash2
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FrioSelect } from "@/components/ui/frio-dropdown";
 import { adminProofHeaders, clearAdminSession, ensureAdminSession } from "@/lib/admin-proof";
 import AdminUsers from "@/components/AdminUsers";
 import { acceptAdminReturn, currentAdminProof, ensureAdminProof } from "@/lib/admin-proof";
@@ -473,12 +474,8 @@ export default function AdminDashboard() {
             {tab === "requests" && (
               <section className="space-y-3">
                 {hasKinds ? (
-                  <select aria-label="Show" value={ticketFilter} onChange={e => setTicketFilter(e.target.value as "request" | "report" | "all")}
-                    className="rounded-md border border-input bg-surface-primary p-2 text-sm">
-                    <option value="request">Subtitle requests</option>
-                    <option value="report">Translation issue reports</option>
-                    <option value="all">Everything</option>
-                  </select>
+                  <FrioSelect ariaLabel="Show" value={ticketFilter} onChange={value => setTicketFilter(value as "request" | "report" | "all")}
+                    options={[{ value: "request", label: "Subtitle requests" }, { value: "report", label: "Translation issue reports" }, { value: "all", label: "Everything" }]} />
                 ) : tickets.length > 0 && <p className="text-xs text-warning">The table has no request/report type column, so everything is listed together.</p>}
                 {visibleTickets.length === 0 && !busy && <p className="text-sm text-body">Nothing here yet.</p>}
                 {visibleTickets.map(item => (

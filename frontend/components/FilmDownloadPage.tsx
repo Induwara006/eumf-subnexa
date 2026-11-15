@@ -71,7 +71,7 @@ export default function FilmDownloadPage({ id, initialItem, details }: { id: str
         )}
 
         {error && (
-          <div className="rounded-[5px] border border-border bg-[var(--next-gray-200)] px-6 py-16 text-center">
+          <div className="sn-card rounded-2xl px-6 py-16 text-center">
             <p role="alert" className="text-sm text-destructive">{error}</p>
             <Button asChild variant="outline" className="mt-4">
               <Link href="/library">Back to the library</Link>
@@ -80,7 +80,7 @@ export default function FilmDownloadPage({ id, initialItem, details }: { id: str
         )}
 
         {item && (
-          <article className="grid gap-8 rounded-[5px] border border-border bg-[var(--next-gray-200)] p-5 sm:grid-cols-[240px_1fr] sm:p-8">
+          <article className="grid gap-8 sn-card rounded-2xl p-5 sm:grid-cols-[240px_1fr] sm:p-8">
             <div className="relative mx-auto aspect-[2/3] w-full max-w-[240px] overflow-hidden rounded-[5px] border border-border bg-[var(--next-gray-300)]">
               {item.poster_url && !posterFailed ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -95,7 +95,7 @@ export default function FilmDownloadPage({ id, initialItem, details }: { id: str
             <div className="min-w-0 space-y-6">
               <div>
                 <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-content-tertiary">Sinhala subtitle</p>
-                <h1 className="mt-3 text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.02]">
+                <h1 className="font-display mt-3 text-[clamp(2rem,4vw,3.2rem)] font-bold leading-[1.02]">
                   {item.title}
                   {item.year ? <span className="font-normal text-body"> ({item.year})</span> : null}
                 </h1>

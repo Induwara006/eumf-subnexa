@@ -38,7 +38,7 @@ const columns: FooterColumn[] = [
 
 export default function SiteFooter() {
   return (
-    <footer className="bg-background py-12 text-ink md:py-16">
+    <footer className="scroll-edge-top bg-background py-14 text-ink md:py-20">
       <div className="mx-auto w-full max-w-[1200px] px-5 sm:px-8">
         <div className="grid grid-cols-1 gap-8 md:gap-16 lg:grid-cols-6">
           <div className="space-y-6 lg:col-span-3">
@@ -54,7 +54,7 @@ export default function SiteFooter() {
           <div className="grid grid-cols-2 items-start gap-8 md:grid-cols-3 md:gap-12 lg:col-span-3 lg:gap-28">
             {columns.map((column) => (
               <div key={column.title} className={column.title === "Company" ? "col-span-2 md:col-span-1" : undefined}>
-                <h3 className="mb-4 text-sm font-medium text-ink md:mb-6">{column.title}</h3>
+                <h3 className="mb-4 text-sm font-semibold tracking-[-0.01em] text-ink md:mb-6">{column.title}</h3>
                 <ul className="space-y-3 text-sm text-body md:space-y-4">
                   {column.links.map((link) => (
                     <li key={link.label} className="flex items-center gap-2">

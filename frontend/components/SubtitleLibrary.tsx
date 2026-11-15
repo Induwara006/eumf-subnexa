@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FrioSelect } from "@/components/ui/frio-dropdown";
 
 type PosterMatch = { id: number; type: string; title: string; year: string; poster_url: string };
 
@@ -450,7 +451,7 @@ export function LibraryBrowser({ api: translationApi, autoFocus = false, seasonK
         <Input aria-label="Filter by year" placeholder="Year" className="w-24" maxLength={4} value={filterYear} onChange={e=>{ setFilterYear(e.target.value.replace(/\D/g,"")); setOffset(0); }}/>
         <Input aria-label="Filter by genre" placeholder="Genre" className="w-32" value={filterGenre} onChange={e=>{ setFilterGenre(e.target.value); setOffset(0); }} maxLength={60}/>
         <Input aria-label="Filter by language" placeholder="Language" className="w-32" value={filterLanguage} onChange={e=>{ setFilterLanguage(e.target.value); setOffset(0); }} maxLength={30}/>
-        <select aria-label="Sort entire library" className="rounded-md border border-input bg-surface-primary p-2 text-sm" value={sortBy} onChange={e=>{ setSortBy(e.target.value); setOffset(0); }}><option value="newest">Newest (default)</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option><option value="year">Year descending</option></select>
+        <FrioSelect ariaLabel="Sort entire library" value={sortBy} onChange={value => { setSortBy(value); setOffset(0); }} options={[{ value: "newest", label: "Newest (default)" }, { value: "oldest", label: "Oldest" }, { value: "title", label: "Title A–Z" }, { value: "year", label: "Year descending" }]} />
         {(filterYear||filterGenre||filterLanguage) && <button className="text-xs underline" onClick={()=>{setFilterYear("");setFilterGenre("");setFilterLanguage("");}}>Clear filters</button>}
         <span className="w-full text-xs text-ink/50">Filters and sorting apply to the full library catalogue.</span>
       </div>}
