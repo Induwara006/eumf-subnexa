@@ -358,6 +358,13 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
     return () => window.clearTimeout(timer);
   }, [translating]);
 
+  // Rate-limit cooldown: count down every second so the card shows how long is left.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setInterval(() => setCooldown(value => (value > 1 ? value - 1 : 0)), 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldown > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // V5.0.3.2: scroll to the existing action only after Stop is confirmed.
   useEffect(() => {
     if (interruption !== "stopped" || translating) return;
@@ -824,6 +831,7 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
               logActivity("Credits unavailable", "No credits were reported by the server");
               break;
             case "batch_complete":
+              setCooldown(0);
               logActivity("Batch completed", `${count} subtitles ${range}`, "success");
               break;
             case "saved":
@@ -1615,8 +1623,11 @@ export default function Studio({ initialSession }: { initialSession: { name?: st
                   <span className="font-mono text-2xl leading-none text-foreground">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-1.5" aria-label="Translation progress" />
-                {modelChoice === "subnexa_pro" && translating && cooldown > 0 && (
-                  <p className="text-xs text-amber-400" role="status">Rate-limit cooldown: {cooldown}s — translation continues automatically.</p>
+                {translating && !interruption && cooldown > 0 && (
+                  <div className="text-xs text-amber-400 space-y-0.5" role="status">
+                    <p>AI is busy. Waiting {cooldown}s, then translation continues automatically.</p>
+                    <p>AI කාර්යබහුලයි. තත්පර {cooldown}කින් පරිවර්තනය ස්වයංක්‍රීයව දිගටම යයි.</p>
+                  </div>
                 )}
                 {modelChoice === "subnexa_02" && (
                   <div className="text-xs text-muted-foreground space-y-1" aria-label="Cloudflare Workers AI usage">

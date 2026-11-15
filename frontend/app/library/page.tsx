@@ -8,7 +8,7 @@ import SlideTextButton from "@/components/ui/slide-text-button";
 import { filmPath } from "@/lib/library-slug";
 import { getLatest } from "@/lib/library-public-server";
 
-export const revalidate = 600;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Sinhala Subtitles Download | SubNexa Library",
