@@ -546,7 +546,10 @@ async def translate_srt_stream(
     signed_profile = _user(http_request)
     # Capture only verified identity needed by the detached producer; never take
     # author name/id from a form field or a frontend session JSON response.
-    library_user = {"sub": signed_profile["sub"], "name": signed_profile.get("name", "")}
+    from subnexa_profile import public_display_name
+    # The public name is the user's chosen display name (profile page), else the Google name.
+    library_user = {"sub": signed_profile["sub"],
+                    "name": await asyncio.to_thread(public_display_name, signed_profile)}
     # SubNexa V4.7: model choice is validated on the server, not trusted from UI.
     from subnexa_model_router import availability, VALID_MODES
     if model_choice not in VALID_MODES:
